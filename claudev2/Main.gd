@@ -7,9 +7,9 @@ const Character = preload("res://Character.gd")
 
 # Game currencies
 var gold: int = 0
-var gems: int = 0
-var pull_currency: int = 0
-var money: int = 0
+var gems: int = 20
+var pull_currency: int = 20
+var money: int = 20
 
 # Game progression
 var current_level: int = 1
