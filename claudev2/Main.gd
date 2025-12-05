@@ -1,9 +1,11 @@
 # Gacha Functions
 extends Control
 
-
 # Preload the Character class
 const Character = preload("res://Character.gd")
+
+# Save file path
+const SAVE_FILE_PATH = "user://savegame.save"
 
 # Game currencies
 var gold: int = 0
@@ -63,7 +65,14 @@ var gacha_system: GachaSystem
 
 func _ready():
 	gacha_system = GachaSystem.new()
-	initialize_player_character()
+	
+	# Try to load saved game first
+	if load_game():
+		print("Game loaded successfully!")
+	else:
+		# If no save exists, initialize new game
+		initialize_player_character()
+	
 	spawn_enemy()
 	update_ui()
 	
@@ -74,6 +83,13 @@ func _ready():
 	
 	# Hide boss timer initially
 	boss_timer_label.visible = false
+	
+	# Auto-save every 30 seconds
+	var save_timer = Timer.new()
+	save_timer.wait_time = 30.0
+	save_timer.autostart = true
+	save_timer.timeout.connect(save_game)
+	add_child(save_timer)
 
 func initialize_player_character():
 	player_character = Character.new()
@@ -84,6 +100,7 @@ func initialize_player_character():
 	player_character.level = 1
 	player_character.is_unlocked = true
 	player_character.is_player_character = true  # Mark as player character
+	player_character.character_id = 0  # Special ID for player
 	unlocked_characters.append(player_character)
 
 func _process(delta):
@@ -130,7 +147,6 @@ func handle_auto_attack(delta):
 		# Apply damage to enemy
 		if total_auto_damage > 0:
 			current_enemy.take_damage(total_auto_damage)
-			print("Auto-attack dealt ", total_auto_damage, " damage from ", get_gacha_character_count(), " characters")
 
 func get_gacha_character_count() -> int:
 	var count = 0
@@ -177,6 +193,7 @@ func _on_enemy_defeated(gold_reward: int):
 	
 	spawn_enemy()
 	update_ui()
+	save_game()  # Save on level up
 
 func update_ui():
 	level_label.text = "Level: " + str(current_level)
@@ -194,7 +211,153 @@ func update_ui():
 	if gacha_ui != null and gacha_ui.visible:
 		gacha_ui.update_button_states(pull_currency)
 
-# UI Button handlers
+# ========== SAVE/LOAD SYSTEM ==========
+
+func save_game():
+	var save_file = FileAccess.open(SAVE_FILE_PATH, FileAccess.WRITE)
+	if save_file == null:
+		print("Error: Could not open save file for writing!")
+		return
+	
+	var save_data = {
+		"gold": gold,
+		"gems": gems,
+		"pull_currency": pull_currency,
+		"money": money,
+		"current_level": current_level,
+		"characters": serialize_characters(),
+		"gacha_pity": gacha_system.get_pity_info()
+	}
+	
+	var json_string = JSON.stringify(save_data)
+	save_file.store_string(json_string)
+	save_file.close()
+	print("Game saved!")
+
+func load_game() -> bool:
+	if not FileAccess.file_exists(SAVE_FILE_PATH):
+		print("No save file found.")
+		return false
+	
+	var save_file = FileAccess.open(SAVE_FILE_PATH, FileAccess.READ)
+	if save_file == null:
+		print("Error: Could not open save file for reading!")
+		return false
+	
+	var json_string = save_file.get_as_text()
+	save_file.close()
+	
+	var json = JSON.new()
+	var parse_result = json.parse(json_string)
+	if parse_result != OK:
+		print("Error: Could not parse save file!")
+		return false
+	
+	var save_data = json.data
+	
+	# Load currencies and progression
+	gold = save_data.get("gold", 0)
+	gems = save_data.get("gems", 20)
+	pull_currency = save_data.get("pull_currency", 20)
+	money = save_data.get("money", 20)
+	current_level = save_data.get("current_level", 1)
+	
+	# Load characters
+	deserialize_characters(save_data.get("characters", []))
+	
+	# Load gacha pity
+	var pity_info = save_data.get("gacha_pity", {})
+	gacha_system.character_pity_count = pity_info.get("character_pity", 0)
+	gacha_system.weapon_pity_count = pity_info.get("weapon_pity", 0)
+	
+	return true
+
+func serialize_characters() -> Array:
+	var serialized = []
+	
+	for character in unlocked_characters:
+		var char_data = {
+			"character_id": character.character_id,
+			"name": character.name,
+			"rarity": character.rarity,
+			"character_type": character.character_type,
+			"level": character.level,
+			"base_damage": character.base_damage,
+			"duplicate_count": character.duplicate_count,
+			"is_player_character": character.is_player_character,
+			"equipped_weapon_id": character.equipped_weapon.character_id if character.equipped_weapon != null else -1
+		}
+		serialized.append(char_data)
+	
+	return serialized
+
+func deserialize_characters(serialized_data: Array):
+	unlocked_characters.clear()
+	
+	# First pass: Create all characters
+	for char_data in serialized_data:
+		var character = Character.new()
+		character.character_id = char_data.get("character_id", -1)
+		character.name = char_data.get("name", "Unknown")
+		character.rarity = char_data.get("rarity", Character.Rarity.COMMON)
+		character.character_type = char_data.get("character_type", Character.Type.CHARACTER)
+		character.level = char_data.get("level", 1)
+		character.base_damage = char_data.get("base_damage", 10)
+		character.duplicate_count = char_data.get("duplicate_count", 0)
+		character.is_unlocked = true
+		character.is_player_character = char_data.get("is_player_character", false)
+		
+		unlocked_characters.append(character)
+		
+		# Set player character reference
+		if character.is_player_character:
+			player_character = character
+	
+	# Second pass: Restore weapon equipment
+	for i in range(serialized_data.size()):
+		var char_data = serialized_data[i]
+		var equipped_weapon_id = char_data.get("equipped_weapon_id", -1)
+		
+		if equipped_weapon_id != -1:
+			var weapon = find_character_by_id(equipped_weapon_id)
+			if weapon != null:
+				unlocked_characters[i].equipped_weapon = weapon
+
+# ========== WEAPON EQUIPPING SYSTEM ==========
+
+func get_available_weapons() -> Array[Character]:
+	var weapons: Array[Character] = []
+	for character in unlocked_characters:
+		if character.character_type == Character.Type.WEAPON:
+			weapons.append(character)
+	return weapons
+
+func equip_weapon(character: Character, weapon: Character):
+	if weapon.character_type != Character.Type.WEAPON:
+		print("Error: Can only equip weapons!")
+		return
+	
+	# Unequip from previous owner if already equipped
+	for other_char in unlocked_characters:
+		if other_char.equipped_weapon == weapon:
+			other_char.equipped_weapon = null
+			print("Unequipped ", weapon.name, " from ", other_char.name)
+	
+	# Equip to new character
+	character.equipped_weapon = weapon
+	print("Equipped ", weapon.name, " to ", character.name)
+	update_ui()
+	save_game()
+
+func unequip_weapon(character: Character):
+	if character.equipped_weapon != null:
+		print("Unequipped ", character.equipped_weapon.name, " from ", character.name)
+		character.equipped_weapon = null
+		update_ui()
+		save_game()
+
+# ========== UI MANAGEMENT ==========
+
 func _on_shop_button_pressed():
 	show_shop_ui()
 
@@ -204,7 +367,6 @@ func _on_gacha_button_pressed():
 func _on_characters_button_pressed():
 	show_characters_ui()
 
-# UI Management
 func show_shop_ui():
 	hide_all_uis()
 	
@@ -268,13 +430,15 @@ func hide_all_uis():
 	if characters_ui != null:
 		characters_ui.visible = false
 
-# Shop Functions
+# ========== SHOP FUNCTIONS ==========
+
 func _on_buy_gems_pressed():
 	var cost = 10  # 10 money for 1 gem
 	if money >= cost:
 		money -= cost
 		gems += 1
 		update_ui()
+		save_game()
 		print("Bought 1 gem for ", cost, " money")
 
 func _on_buy_pulls_pressed():
@@ -283,9 +447,11 @@ func _on_buy_pulls_pressed():
 		gems -= cost
 		pull_currency += 1
 		update_ui()
+		save_game()
 		print("Bought 1 pull currency for ", cost, " gems")
 
-# Gacha Functions
+# ========== GACHA FUNCTIONS ==========
+
 func _on_character_pull_pressed():
 	if pull_currency >= 1:
 		pull_currency -= 1
@@ -293,6 +459,7 @@ func _on_character_pull_pressed():
 		process_character_result(result)
 		update_ui()
 		show_pull_result([result])
+		save_game()
 
 func _on_character_pull_10_pressed():
 	if pull_currency >= 10:
@@ -302,6 +469,7 @@ func _on_character_pull_10_pressed():
 			process_character_result(result)
 		update_ui()
 		show_pull_result(results)
+		save_game()
 
 func _on_weapon_pull_pressed():
 	if pull_currency >= 1:
@@ -310,6 +478,7 @@ func _on_weapon_pull_pressed():
 		process_weapon_result(result)
 		update_ui()
 		show_pull_result([result])
+		save_game()
 
 func _on_weapon_pull_10_pressed():
 	if pull_currency >= 10:
@@ -319,6 +488,7 @@ func _on_weapon_pull_10_pressed():
 			process_weapon_result(result)
 		update_ui()
 		show_pull_result(results)
+		save_game()
 
 func process_character_result(new_character: Character):
 	# Check for duplicates
@@ -333,9 +503,16 @@ func process_character_result(new_character: Character):
 		print("New character unlocked: ", new_character.name)
 
 func process_weapon_result(new_weapon: Character):
-	# For now, just add all weapons to the pool (we'll implement weapon equipping later)
-	unlocked_characters.append(new_weapon)
-	print("New weapon obtained: ", new_weapon.name)
+	# Check for duplicates
+	var existing_weapon = find_character_by_id(new_weapon.character_id)
+	if existing_weapon != null:
+		# Handle duplicate
+		existing_weapon.add_duplicate()
+		print("Duplicate weapon! ", existing_weapon.name, " now has ", existing_weapon.duplicate_count, " duplicates")
+	else:
+		# New weapon
+		unlocked_characters.append(new_weapon)
+		print("New weapon obtained: ", new_weapon.name)
 
 func find_character_by_id(character_id: int) -> Character:
 	for character in unlocked_characters:
@@ -430,7 +607,8 @@ func show_pull_result(results: Array[Character]):
 	popup.popup_centered()
 	popup.confirmed.connect(popup.queue_free)
 
-# Character Functions
+# ========== CHARACTER FUNCTIONS ==========
+
 func _on_character_selected(character: Character):
 	show_character_popup(character)
 
@@ -438,7 +616,7 @@ func show_character_popup(character: Character):
 	# Create popup window
 	var popup = AcceptDialog.new()
 	popup.title = character.name + " Details"
-	popup.size = Vector2(450, 350)
+	popup.size = Vector2(450, 450)
 	
 	# Create content container
 	var vbox = VBoxContainer.new()
@@ -488,14 +666,67 @@ func show_character_popup(character: Character):
 		upgrade_button.pressed.connect(_on_upgrade_character.bind(character, popup))
 		vbox.add_child(upgrade_button)
 	
-	# Weapon slot (placeholder for now)
+	# Weapon management section (only for characters)
 	if character.character_type == Character.Type.CHARACTER:
-		var weapon_label = Label.new()
+		var separator = HSeparator.new()
+		vbox.add_child(separator)
+		
+		var weapon_title = Label.new()
+		weapon_title.text = "Equipped Weapon:"
+		weapon_title.add_theme_font_size_override("font_size", 16)
+		vbox.add_child(weapon_title)
+		
+		# Current weapon display
+		var current_weapon_label = Label.new()
 		if character.equipped_weapon != null:
-			weapon_label.text = "Equipped Weapon: " + character.equipped_weapon.name
+			current_weapon_label.text = "⚔ " + character.equipped_weapon.name + " (+" + str(character.equipped_weapon.get_weapon_damage()) + " DMG)"
+			current_weapon_label.modulate = character.equipped_weapon.get_rarity_color()
 		else:
-			weapon_label.text = "Equipped Weapon: None"
-		vbox.add_child(weapon_label)
+			current_weapon_label.text = "None"
+			current_weapon_label.modulate = Color.GRAY
+		vbox.add_child(current_weapon_label)
+		
+		# Unequip button
+		if character.equipped_weapon != null:
+			var unequip_button = Button.new()
+			unequip_button.text = "Unequip Weapon"
+			unequip_button.pressed.connect(_on_unequip_weapon.bind(character, popup))
+			vbox.add_child(unequip_button)
+		
+		# Weapon selection dropdown
+		var available_weapons = get_available_weapons()
+		if available_weapons.size() > 0:
+			var weapon_select_label = Label.new()
+			weapon_select_label.text = "Select Weapon to Equip:"
+			vbox.add_child(weapon_select_label)
+			
+			var weapon_scroll = ScrollContainer.new()
+			weapon_scroll.custom_minimum_size = Vector2(400, 100)
+			vbox.add_child(weapon_scroll)
+			
+			var weapon_vbox = VBoxContainer.new()
+			weapon_scroll.add_child(weapon_vbox)
+			
+			for weapon in available_weapons:
+				var weapon_button = Button.new()
+				var weapon_dmg = weapon.get_weapon_damage()
+				weapon_button.text = "⚔ " + weapon.name + " (+" + str(weapon_dmg) + " DMG)"
+				
+				# Show if weapon is equipped elsewhere
+				var equipped_to = ""
+				for other_char in unlocked_characters:
+					if other_char.equipped_weapon == weapon:
+						equipped_to = " [Equipped to " + other_char.name + "]"
+						break
+				
+				weapon_button.text += equipped_to
+				weapon_button.modulate = weapon.get_rarity_color()
+				
+				# Disable if it's the currently equipped weapon
+				weapon_button.disabled = (character.equipped_weapon == weapon)
+				
+				weapon_button.pressed.connect(_on_equip_weapon.bind(character, weapon, popup))
+				weapon_vbox.add_child(weapon_button)
 	
 	# Add popup to scene
 	add_child(popup)
@@ -508,11 +739,33 @@ func _on_upgrade_character(character: Character, popup: AcceptDialog):
 		gold -= cost
 		character.upgrade_character(cost)
 		update_ui()
+		save_game()
 		popup.queue_free()
+		# Reopen the popup with updated info
+		show_character_popup(character)
 		print("Upgraded ", character.name, " to level ", character.level)
 
-# Input handling for attacking enemies (only player character now)
+func _on_equip_weapon(character: Character, weapon: Character, popup: AcceptDialog):
+	equip_weapon(character, weapon)
+	popup.queue_free()
+	# Reopen the popup with updated info
+	show_character_popup(character)
+
+func _on_unequip_weapon(character: Character, popup: AcceptDialog):
+	unequip_weapon(character)
+	popup.queue_free()
+	# Reopen the popup with updated info
+	show_character_popup(character)
+
+# ========== INPUT HANDLING ==========
+
 func _input(event):
 	if event is InputEventMouseButton and event.pressed:
 		if current_enemy != null and event.button_index == MOUSE_BUTTON_LEFT:
 			current_enemy.take_damage(player_damage)
+
+func _notification(what):
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		# Save game when closing
+		save_game()
+		get_tree().quit()
