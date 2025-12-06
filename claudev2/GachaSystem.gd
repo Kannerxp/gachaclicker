@@ -32,25 +32,25 @@ func _init():
 
 func initialize_character_pool():
 	# Common Characters
-	character_pool.append({"id": 1, "name": "Warrior", "rarity": Character.Rarity.COMMON, "damage": 15})
-	character_pool.append({"id": 2, "name": "Scout", "rarity": Character.Rarity.COMMON, "damage": 12})
-	character_pool.append({"id": 3, "name": "Guard", "rarity": Character.Rarity.COMMON, "damage": 18})
-	character_pool.append({"id": 4, "name": "Hunter", "rarity": Character.Rarity.COMMON, "damage": 14})
+	character_pool.append({"id": 1, "name": "Warrior", "rarity": Character.Rarity.COMMON, "damage": 15, "role": Character.Role.TANK, "element": Character.Element.EARTH})
+	character_pool.append({"id": 2, "name": "Scout", "rarity": Character.Rarity.COMMON, "damage": 12, "role": Character.Role.DPS, "element": Character.Element.NEUTRAL})
+	character_pool.append({"id": 3, "name": "Guard", "rarity": Character.Rarity.COMMON, "damage": 18, "role": Character.Role.TANK, "element": Character.Element.EARTH})
+	character_pool.append({"id": 4, "name": "Hunter", "rarity": Character.Rarity.COMMON, "damage": 14, "role": Character.Role.DPS, "element": Character.Element.NEUTRAL})
 	
 	# Rare Characters
-	character_pool.append({"id": 5, "name": "Knight", "rarity": Character.Rarity.RARE, "damage": 25})
-	character_pool.append({"id": 6, "name": "Archer", "rarity": Character.Rarity.RARE, "damage": 22})
-	character_pool.append({"id": 7, "name": "Mage", "rarity": Character.Rarity.RARE, "damage": 28})
-	character_pool.append({"id": 8, "name": "Rogue", "rarity": Character.Rarity.RARE, "damage": 24})
+	character_pool.append({"id": 5, "name": "Knight", "rarity": Character.Rarity.RARE, "damage": 25, "role": Character.Role.TANK, "element": Character.Element.LIGHT})
+	character_pool.append({"id": 6, "name": "Archer", "rarity": Character.Rarity.RARE, "damage": 22, "role": Character.Role.DPS, "element": Character.Element.LIGHTNING})
+	character_pool.append({"id": 7, "name": "Mage", "rarity": Character.Rarity.RARE, "damage": 28, "role": Character.Role.DPS, "element": Character.Element.FIRE})
+	character_pool.append({"id": 8, "name": "Rogue", "rarity": Character.Rarity.RARE, "damage": 24, "role": Character.Role.DPS, "element": Character.Element.DARK})
 	
 	# Legendary Characters
-	character_pool.append({"id": 9, "name": "Paladin", "rarity": Character.Rarity.LEGENDARY, "damage": 45})
-	character_pool.append({"id": 10, "name": "Assassin", "rarity": Character.Rarity.LEGENDARY, "damage": 50})
-	character_pool.append({"id": 11, "name": "Wizard", "rarity": Character.Rarity.LEGENDARY, "damage": 48})
+	character_pool.append({"id": 9, "name": "Paladin", "rarity": Character.Rarity.LEGENDARY, "damage": 45, "role": Character.Role.TANK, "element": Character.Element.LIGHT})
+	character_pool.append({"id": 10, "name": "Assassin", "rarity": Character.Rarity.LEGENDARY, "damage": 50, "role": Character.Role.DPS, "element": Character.Element.DARK})
+	character_pool.append({"id": 11, "name": "Wizard", "rarity": Character.Rarity.LEGENDARY, "damage": 48, "role": Character.Role.DPS, "element": Character.Element.ICE})
 	
 	# Mythic Characters
-	character_pool.append({"id": 12, "name": "Dragon Slayer", "rarity": Character.Rarity.MYTHIC, "damage": 80})
-	character_pool.append({"id": 13, "name": "Archmage", "rarity": Character.Rarity.MYTHIC, "damage": 85})
+	character_pool.append({"id": 12, "name": "Dragon Slayer", "rarity": Character.Rarity.MYTHIC, "damage": 80, "role": Character.Role.DPS, "element": Character.Element.FIRE})
+	character_pool.append({"id": 13, "name": "Archmage", "rarity": Character.Rarity.MYTHIC, "damage": 85, "role": Character.Role.SUPPORT, "element": Character.Element.LIGHT})
 
 func initialize_weapon_pool():
 	# Common Weapons
@@ -176,6 +176,9 @@ func create_character_from_data(data: Dictionary) -> Character:
 	character.level = 1
 	character.is_unlocked = true
 	character.duplicate_count = 0
+	character.role = data.get("role", Character.Role.DPS)
+	character.element = data.get("element", Character.Element.NEUTRAL)
+	character.formation_position = Character.Formation.FRONT  # Default to front
 	return character
 
 func create_weapon_from_data(data: Dictionary) -> Character:

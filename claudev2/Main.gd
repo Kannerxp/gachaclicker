@@ -38,11 +38,13 @@ var auto_attack_interval: float = 1.0  # Attack every 1 second
 var shop_scene = preload("res://ShopUI.tscn")
 var gacha_scene = preload("res://GachaUI.tscn")
 var characters_scene = preload("res://CharactersUI.tscn")
+var team_scene = preload("res://TeamUI.tscn")
 
 # UI Instance references
 var shop_ui: Control = null
 var gacha_ui: Control = null
 var characters_ui: Control = null
+var team_ui: Control = null
 
 # UI References
 @onready var level_label = $UI/TopPanel/LevelLabel
@@ -57,11 +59,16 @@ var characters_ui: Control = null
 @onready var shop_button = $UI/BottomPanel/ShopButton
 @onready var gacha_button = $UI/BottomPanel/GachaButton
 @onready var characters_button = $UI/BottomPanel/CharactersButton
+@onready var team_button = $UI/BottomPanel/TeamButton
 
 # Character system
 var unlocked_characters: Array[Character] = []
 var player_character: Character
 var gacha_system: GachaSystem
+
+# Team system
+var active_team: Array[Character] = []
+const MAX_TEAM_SIZE = 5
 
 func _ready():
 	gacha_system = GachaSystem.new()
@@ -80,6 +87,7 @@ func _ready():
 	shop_button.pressed.connect(_on_shop_button_pressed)
 	gacha_button.pressed.connect(_on_gacha_button_pressed)
 	characters_button.pressed.connect(_on_characters_button_pressed)
+	team_button.pressed.connect(_on_team_button_pressed)
 	
 	# Hide boss timer initially
 	boss_timer_label.visible = false
@@ -101,7 +109,12 @@ func initialize_player_character():
 	player_character.is_unlocked = true
 	player_character.is_player_character = true  # Mark as player character
 	player_character.character_id = 0  # Special ID for player
+	player_character.role = Character.Role.DPS
+	player_character.element = Character.Element.NEUTRAL
+	player_character.formation_position = Character.Formation.FRONT
+	player_character.is_in_team = true
 	unlocked_characters.append(player_character)
+	active_team.append(player_character)
 
 func _process(delta):
 	handle_money_generation(delta)
@@ -138,22 +151,96 @@ func handle_auto_attack(delta):
 	if auto_attack_timer >= auto_attack_interval:
 		auto_attack_timer = 0.0
 		
-		# Calculate total damage from all gacha characters (non-player characters)
-		var total_auto_damage = 0
-		for character in unlocked_characters:
-			if character.character_type == Character.Type.CHARACTER and not character.is_player_character:
-				total_auto_damage += character.get_total_damage()
+		# Calculate total damage from active team (excluding player for auto-attack)
+		var total_auto_damage = calculate_team_damage(false)
 		
 		# Apply damage to enemy
 		if total_auto_damage > 0:
 			current_enemy.take_damage(total_auto_damage)
 
-func get_gacha_character_count() -> int:
-	var count = 0
-	for character in unlocked_characters:
-		if character.character_type == Character.Type.CHARACTER and not character.is_player_character:
-			count += 1
-	return count
+# ========== TEAM SYSTEM ==========
+
+func calculate_team_damage(include_player: bool = true) -> int:
+	var total_damage = 0
+	
+	for character in active_team:
+		# Skip player if requested (for auto-attack calculation)
+		if not include_player and character.is_player_character:
+			continue
+		
+		# Base damage with role and formation multipliers
+		var char_damage = character.get_total_damage()
+		char_damage = int(char_damage * character.get_role_multiplier())
+		char_damage = int(char_damage * character.get_formation_multiplier())
+		
+		total_damage += char_damage
+	
+	# Apply team synergies
+	var synergy_multiplier = get_team_synergy_multiplier()
+	total_damage = int(total_damage * synergy_multiplier)
+	
+	return total_damage
+
+func get_team_synergy_multiplier() -> float:
+	var multiplier = 1.0
+	
+	# Count elements
+	var element_counts = {}
+	for character in active_team:
+		var element = character.element
+		if element != Character.Element.NEUTRAL:
+			element_counts[element] = element_counts.get(element, 0) + 1
+	
+	# Element resonance bonus (10% per matching element, minimum 2)
+	for element in element_counts:
+		var count = element_counts[element]
+		if count >= 2:
+			multiplier += 0.1 * count
+	
+	# Opposite element synergies
+	if element_counts.has(Character.Element.FIRE) and element_counts.has(Character.Element.ICE):
+		multiplier += 0.25
+	
+	if element_counts.has(Character.Element.LIGHT) and element_counts.has(Character.Element.DARK):
+		multiplier += 0.25
+	
+	# Role synergies
+	var role_counts = {}
+	for character in active_team:
+		var role = character.role
+		role_counts[role] = role_counts.get(role, 0) + 1
+	
+	# Balanced team bonus (all 3 roles present)
+	if role_counts.size() == 3:
+		multiplier += 0.15
+	
+	return multiplier
+
+func add_to_team(character: Character):
+	if active_team.size() >= MAX_TEAM_SIZE:
+		print("Team is full!")
+		return
+	
+	if character.is_in_team:
+		print(character.name, " is already in the team!")
+		return
+	
+	character.is_in_team = true
+	active_team.append(character)
+	print("Added ", character.name, " to the team!")
+	save_game()
+
+func remove_from_team(character: Character):
+	if character.is_player_character:
+		print("Cannot remove player character from team!")
+		return
+	
+	character.is_in_team = false
+	active_team.erase(character)
+	print("Removed ", character.name, " from the team!")
+	save_game()
+
+# ========== SPAWN/COMBAT ==========
 
 func spawn_enemy():
 	# Remove current enemy if it exists
@@ -202,8 +289,8 @@ func update_ui():
 	money_label.text = "Money: " + str(money)
 	pull_currency_label.text = "Pulls: " + str(pull_currency)
 	
-	# Update player damage based on character level
-	player_damage = player_character.get_total_damage()
+	# Update player damage based on team damage
+	player_damage = calculate_team_damage(true)
 	
 	# Update UI button states if UIs are open
 	if shop_ui != null and shop_ui.visible:
@@ -226,7 +313,8 @@ func save_game():
 		"money": money,
 		"current_level": current_level,
 		"characters": serialize_characters(),
-		"gacha_pity": gacha_system.get_pity_info()
+		"gacha_pity": gacha_system.get_pity_info(),
+		"active_team_ids": serialize_team()
 	}
 	
 	var json_string = JSON.stringify(save_data)
@@ -265,6 +353,9 @@ func load_game() -> bool:
 	# Load characters
 	deserialize_characters(save_data.get("characters", []))
 	
+	# Load active team
+	deserialize_team(save_data.get("active_team_ids", []))
+	
 	# Load gacha pity
 	var pity_info = save_data.get("gacha_pity", {})
 	gacha_system.character_pity_count = pity_info.get("character_pity", 0)
@@ -285,7 +376,11 @@ func serialize_characters() -> Array:
 			"base_damage": character.base_damage,
 			"duplicate_count": character.duplicate_count,
 			"is_player_character": character.is_player_character,
-			"equipped_weapon_id": character.equipped_weapon.character_id if character.equipped_weapon != null else -1
+			"equipped_weapon_id": character.equipped_weapon.character_id if character.equipped_weapon != null else -1,
+			"role": character.role,
+			"element": character.element,
+			"formation_position": character.formation_position,
+			"is_in_team": character.is_in_team
 		}
 		serialized.append(char_data)
 	
@@ -306,6 +401,10 @@ func deserialize_characters(serialized_data: Array):
 		character.duplicate_count = char_data.get("duplicate_count", 0)
 		character.is_unlocked = true
 		character.is_player_character = char_data.get("is_player_character", false)
+		character.role = char_data.get("role", Character.Role.DPS)
+		character.element = char_data.get("element", Character.Element.NEUTRAL)
+		character.formation_position = char_data.get("formation_position", Character.Formation.FRONT)
+		character.is_in_team = char_data.get("is_in_team", false)
 		
 		unlocked_characters.append(character)
 		
@@ -322,6 +421,30 @@ func deserialize_characters(serialized_data: Array):
 			var weapon = find_character_by_id(equipped_weapon_id)
 			if weapon != null:
 				unlocked_characters[i].equipped_weapon = weapon
+
+func serialize_team() -> Array:
+	var team_ids = []
+	for character in active_team:
+		team_ids.append(character.character_id)
+	return team_ids
+
+func deserialize_team(team_ids: Array):
+	active_team.clear()
+	for char_id in team_ids:
+		var character = find_character_by_id(char_id)
+		if character != null:
+			active_team.append(character)
+
+# ========== RESET PROGRESS ==========
+
+func reset_progress():
+	# Delete save file
+	if FileAccess.file_exists(SAVE_FILE_PATH):
+		DirAccess.remove_absolute(SAVE_FILE_PATH)
+	
+	# Reload the scene
+	get_tree().reload_current_scene()
+	print("Progress reset!")
 
 # ========== WEAPON EQUIPPING SYSTEM ==========
 
@@ -366,6 +489,9 @@ func _on_gacha_button_pressed():
 
 func _on_characters_button_pressed():
 	show_characters_ui()
+
+func _on_team_button_pressed():
+	show_team_ui()
 
 func show_shop_ui():
 	hide_all_uis()
@@ -422,6 +548,21 @@ func show_characters_ui():
 	characters_ui.visible = true
 	characters_ui.refresh_characters(unlocked_characters)
 
+func show_team_ui():
+	hide_all_uis()
+	
+	if team_ui == null:
+		team_ui = team_scene.instantiate()
+		add_child(team_ui)
+		
+		# Connect signals
+		team_ui.character_selected_for_team.connect(_on_character_selected_for_team)
+		team_ui.formation_changed.connect(_on_formation_changed)
+		team_ui.back_pressed.connect(hide_all_uis)
+	
+	team_ui.visible = true
+	team_ui.refresh_team(active_team, unlocked_characters)
+
 func hide_all_uis():
 	if shop_ui != null:
 		shop_ui.visible = false
@@ -429,6 +570,8 @@ func hide_all_uis():
 		gacha_ui.visible = false
 	if characters_ui != null:
 		characters_ui.visible = false
+	if team_ui != null:
+		team_ui.visible = false
 
 # ========== SHOP FUNCTIONS ==========
 
@@ -568,7 +711,7 @@ func show_pull_result(results: Array[Character]):
 		# Character info
 		var info_label = Label.new()
 		var rarity_text = Character.Rarity.keys()[result.rarity]
-		var type_text = "★" if result.character_type == Character.Type.CHARACTER else "⚔"
+		var type_text = result.get_element_icon() if result.character_type == Character.Type.CHARACTER else "⚔"
 		info_label.text = type_text + " " + result.name + " (" + rarity_text + ")"
 		info_label.modulate = result.get_rarity_color()
 		result_container.add_child(info_label)
@@ -612,11 +755,21 @@ func show_pull_result(results: Array[Character]):
 func _on_character_selected(character: Character):
 	show_character_popup(character)
 
+func _on_character_selected_for_team(character: Character):
+	add_to_team(character)
+	if team_ui != null:
+		team_ui.refresh_team(active_team, unlocked_characters)
+	update_ui()
+
+func _on_formation_changed(character: Character, new_formation: Character.Formation):
+	save_game()
+	update_ui()
+
 func show_character_popup(character: Character):
 	# Create popup window
 	var popup = AcceptDialog.new()
 	popup.title = character.name + " Details"
-	popup.size = Vector2(450, 450)
+	popup.size = Vector2(450, 500)
 	
 	# Create content container
 	var vbox = VBoxContainer.new()
@@ -627,7 +780,10 @@ func show_character_popup(character: Character):
 	vbox.add_child(header_container)
 	
 	var type_indicator = Label.new()
-	type_indicator.text = "★" if character.character_type == Character.Type.CHARACTER else "⚔"
+	if character.character_type == Character.Type.CHARACTER:
+		type_indicator.text = character.get_element_icon()
+	else:
+		type_indicator.text = "⚔"
 	type_indicator.add_theme_font_size_override("font_size", 24)
 	type_indicator.modulate = character.get_rarity_color()
 	header_container.add_child(type_indicator)
@@ -648,7 +804,11 @@ func show_character_popup(character: Character):
 	info_label.text += "Level: " + str(character.level) + "\n"
 	
 	if character.character_type == Character.Type.CHARACTER:
+		info_label.text += "Role: " + character.get_role_name() + "\n"
+		info_label.text += "Element: " + character.get_element_name() + "\n"
+		info_label.text += "Formation: " + ("FRONT" if character.formation_position == Character.Formation.FRONT else "BACK") + "\n"
 		info_label.text += "Total Damage: " + str(character.get_total_damage()) + "\n"
+		info_label.text += "In Team: " + ("Yes" if character.is_in_team else "No") + "\n"
 	else:
 		info_label.text += "Weapon Damage: " + str(character.get_weapon_damage()) + "\n"
 	
@@ -760,9 +920,16 @@ func _on_unequip_weapon(character: Character, popup: AcceptDialog):
 # ========== INPUT HANDLING ==========
 
 func _input(event):
+	# Player character manual attack
 	if event is InputEventMouseButton and event.pressed:
 		if current_enemy != null and event.button_index == MOUSE_BUTTON_LEFT:
+			# Player damage is calculated as total team damage
 			current_enemy.take_damage(player_damage)
+	
+	# Cheat code to reset progress (Press R key)
+	if event is InputEventKey and event.pressed and event.keycode == KEY_R:
+		if Input.is_key_pressed(KEY_CTRL):
+			reset_progress()
 
 func _notification(what):
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:

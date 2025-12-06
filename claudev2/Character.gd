@@ -13,6 +13,27 @@ enum Type {
 	WEAPON
 }
 
+enum Role {
+	DPS,      # High damage output
+	TANK,     # High health, takes damage
+	SUPPORT   # Buffs team
+}
+
+enum Element {
+	FIRE,
+	ICE,
+	LIGHTNING,
+	EARTH,
+	LIGHT,
+	DARK,
+	NEUTRAL
+}
+
+enum Formation {
+	FRONT,    # Front row - takes more damage but deals more
+	BACK      # Back row - takes less damage but deals less
+}
+
 @export var name: String = ""
 @export var rarity: Rarity = Rarity.COMMON
 @export var character_type: Type = Type.CHARACTER
@@ -22,9 +43,15 @@ enum Type {
 @export var duplicate_count: int = 0
 @export var character_id: int = -1  # Unique identifier for duplicate checking
 
+# New attributes for team composition
+@export var role: Role = Role.DPS
+@export var element: Element = Element.NEUTRAL
+@export var formation_position: Formation = Formation.FRONT
+
 # Weapon system
 var equipped_weapon: Character = null
 var is_player_character: bool = false  # True only for the main player character
+var is_in_team: bool = false  # Whether this character is in the active team
 
 # Rarity-based stats
 func get_rarity_multiplier() -> float:
@@ -81,3 +108,72 @@ func get_rarity_color() -> Color:
 			return Color.MAGENTA
 		_:
 			return Color.WHITE
+
+func get_role_name() -> String:
+	match role:
+		Role.DPS:
+			return "DPS"
+		Role.TANK:
+			return "Tank"
+		Role.SUPPORT:
+			return "Support"
+		_:
+			return "Unknown"
+
+func get_element_name() -> String:
+	match element:
+		Element.FIRE:
+			return "Fire"
+		Element.ICE:
+			return "Ice"
+		Element.LIGHTNING:
+			return "Lightning"
+		Element.EARTH:
+			return "Earth"
+		Element.LIGHT:
+			return "Light"
+		Element.DARK:
+			return "Dark"
+		Element.NEUTRAL:
+			return "Neutral"
+		_:
+			return "Unknown"
+
+func get_element_icon() -> String:
+	match element:
+		Element.FIRE:
+			return "🔥"
+		Element.ICE:
+			return "❄️"
+		Element.LIGHTNING:
+			return "⚡"
+		Element.EARTH:
+			return "🌍"
+		Element.LIGHT:
+			return "✨"
+		Element.DARK:
+			return "🌙"
+		Element.NEUTRAL:
+			return "⭕"
+		_:
+			return ""
+
+func get_role_multiplier() -> float:
+	match role:
+		Role.DPS:
+			return 1.2  # 20% more damage
+		Role.TANK:
+			return 0.8  # 20% less damage but tankier
+		Role.SUPPORT:
+			return 0.9  # 10% less damage but provides buffs
+		_:
+			return 1.0
+
+func get_formation_multiplier() -> float:
+	match formation_position:
+		Formation.FRONT:
+			return 1.1  # 10% more damage in front
+		Formation.BACK:
+			return 0.95 # 5% less damage in back (safer)
+		_:
+			return 1.0
