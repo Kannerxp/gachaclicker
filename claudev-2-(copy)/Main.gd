@@ -54,6 +54,7 @@ var team_ui: Control = null
 @onready var pull_currency_label = $UI/TopPanel/PullCurrencyLabel
 @onready var enemy_container = $EnemyContainer
 @onready var boss_timer_label = $UI/BossTimerLabel
+@onready var team_container = $TeamDisplay/TeamContainer
 
 # UI Buttons
 @onready var shop_button = $UI/BottomPanel/ShopButton
@@ -82,6 +83,7 @@ func _ready():
 	
 	spawn_enemy()
 	update_ui()
+	update_team_display()
 	
 	# Connect UI buttons
 	shop_button.pressed.connect(_on_shop_button_pressed)
@@ -228,6 +230,7 @@ func add_to_team(character: Character):
 	character.is_in_team = true
 	active_team.append(character)
 	print("Added ", character.name, " to the team!")
+	update_team_display()
 	save_game()
 
 func remove_from_team(character: Character):
@@ -238,6 +241,7 @@ func remove_from_team(character: Character):
 	character.is_in_team = false
 	active_team.erase(character)
 	print("Removed ", character.name, " from the team!")
+	update_team_display()
 	save_game()
 
 # ========== SPAWN/COMBAT ==========
@@ -297,6 +301,78 @@ func update_ui():
 		shop_ui.update_button_states(money, gems)
 	if gacha_ui != null and gacha_ui.visible:
 		gacha_ui.update_button_states(pull_currency)
+
+func update_team_display():
+	# Get all character slots
+	var slots = [
+		team_container.get_node("CharSlot1"),
+		team_container.get_node("CharSlot2"),
+		team_container.get_node("PlayerSlot"),
+		team_container.get_node("CharSlot3"),
+		team_container.get_node("CharSlot4")
+	]
+	
+	# Clear all slots first
+	for slot in slots:
+		for child in slot.get_children():
+			child.queue_free()
+	
+	# Player always goes in the middle (index 2)
+	if player_character != null:
+		var player_display = create_character_display(player_character)
+		slots[2].add_child(player_display)
+	
+	# Add other team members (excluding player)
+	var other_team_members = active_team.filter(func(c): return not c.is_player_character)
+	
+	# Distribute team members to slots
+	# Slots 0 and 1 are left side, slots 3 and 4 are right side
+	var slot_indices = [0, 1, 3, 4]
+	
+	for i in range(min(other_team_members.size(), 4)):
+		var character = other_team_members[i]
+		var slot_index = slot_indices[i]
+		var char_display = create_character_display(character)
+		slots[slot_index].add_child(char_display)
+
+func create_character_display(character: Character) -> Control:
+	var display = Control.new()
+	display.custom_minimum_size = Vector2(80, 100)
+	
+	# Character sprite/box
+	var sprite = ColorRect.new()
+	sprite.custom_minimum_size = Vector2(60, 60)
+	sprite.position = Vector2(10, 5)
+	sprite.color = character.get_rarity_color()
+	display.add_child(sprite)
+	
+	# Element icon overlay
+	var element_label = Label.new()
+	element_label.text = character.get_element_icon()
+	element_label.position = Vector2(15, 10)
+	element_label.add_theme_font_size_override("font_size", 24)
+	display.add_child(element_label)
+	
+	# Character name
+	var name_label = Label.new()
+	name_label.text = character.name
+	name_label.position = Vector2(0, 70)
+	name_label.custom_minimum_size = Vector2(80, 15)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.add_theme_font_size_override("font_size", 10)
+	name_label.modulate = character.get_rarity_color()
+	display.add_child(name_label)
+	
+	# Level label
+	var level_label = Label.new()
+	level_label.text = "Lv." + str(character.level)
+	level_label.position = Vector2(0, 85)
+	level_label.custom_minimum_size = Vector2(80, 12)
+	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	level_label.add_theme_font_size_override("font_size", 9)
+	display.add_child(level_label)
+	
+	return display
 
 # ========== SAVE/LOAD SYSTEM ==========
 
@@ -761,6 +837,7 @@ func _on_character_selected_for_team(character: Character):
 	if team_ui != null:
 		var total_dps = calculate_team_damage(true)
 		team_ui.refresh_team(active_team, unlocked_characters, total_dps)
+	update_team_display()
 	update_ui()
 
 func _on_formation_changed(character: Character, new_formation: Character.Formation):
