@@ -5,6 +5,7 @@ const Character = preload("res://Character.gd")
 signal character_selected_for_team(character: Character)
 signal formation_changed(character: Character, new_formation: Character.Formation)
 signal back_pressed
+signal character_removed_from_team(character: Character)
 
 @onready var team_container = $TeamPanel/TeamScrollContainer/TeamVBox
 @onready var available_container = $AvailablePanel/AvailableScrollContainer/AvailableVBox
@@ -225,8 +226,7 @@ func _on_add_to_team(character: Character):
 	character_selected_for_team.emit(character)
 
 func _on_remove_from_team(character: Character):
-	character.is_in_team = false
-	refresh_team(current_team.filter(func(c): return c != character), available_characters + current_team, current_total_dps)
+	character_removed_from_team.emit(character)
 
 func _on_toggle_formation(character: Character):
 	if character.formation_position == Character.Formation.FRONT:

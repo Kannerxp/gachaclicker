@@ -306,30 +306,27 @@ func remove_tank_indicator():
 		tank_indicator = null
 
 func update_ability_buttons():
-	var slot_indices = [0, 1, 2, 3, 4]
-	var team_chars = []
-	
-	# Build list of characters in slot order
-	var other_members = active_team.filter(func(c): return not c.is_player_character)
-	var slot_map = [0, 1, 3, 4]
-	
-	for i in 5:
-		if i == 2:
-			team_chars.append(player_character)
+	# Update each button based on its slot index
+	for i in range(ability_buttons.size()):
+		var button = ability_buttons[i]
+		var slot_index = i  # Button index matches slot index now
+		
+		# Find the character for this slot
+		var character: Character = null
+		
+		if slot_index == 2:
+			character = player_character
 		else:
-			var list_idx = slot_map.find(i)
-			if list_idx >= 0 and list_idx < other_members.size():
-				team_chars.append(other_members[list_idx])
-			else:
-				team_chars.append(null)
-	
-	# Update each button
-	for i in range(min(ability_buttons.size(), team_chars.size())):
-		var character = team_chars[i]
+			var other_members = active_team.filter(func(c): return not c.is_player_character)
+			var slot_map = [0, 1, -1, 2, 3]  # Maps slot to member index
+			var member_index = slot_map[slot_index]
+			
+			if member_index >= 0 and member_index < other_members.size():
+				character = other_members[member_index]
+		
 		if character == null:
 			continue
 		
-		var button = ability_buttons[i]
 		button.disabled = not character.is_ability_ready()
 		
 		# Find and update cooldown label
@@ -508,23 +505,32 @@ func update_team_display():
 		for child in slot.get_children():
 			child.queue_free()
 	
-	# Player always goes in the middle (index 2)
-	if player_character != null:
-		var player_display = create_character_display(player_character)
-		slots[2].add_child(player_display)
+	# Clear ability buttons array
+	ability_buttons.clear()
 	
-	# Add other team members (excluding player)
+	# Get other team members (excluding player)
 	var other_team_members = active_team.filter(func(c): return not c.is_player_character)
 	
-	# Distribute team members to slots
-	# Slots 0 and 1 are left side, slots 3 and 4 are right side
-	var slot_indices = [0, 1, 3, 4]
+	# Map for slot positions: slot 0, 1 are left side, slot 3, 4 are right side
+	var slot_to_member_index = [0, 1, -1, 2, 3]  # -1 means player slot
 	
-	for i in range(min(other_team_members.size(), 4)):
-		var character = other_team_members[i]
-		var slot_index = slot_indices[i]
-		var char_display = create_character_display(character)
-		slots[slot_index].add_child(char_display)
+	# Create displays in slot order (0 through 4)
+	for slot_index in range(5):
+		var character: Character = null
+		
+		if slot_index == 2:
+			# Player slot
+			character = player_character
+		else:
+			# Other member slot
+			var member_index = slot_to_member_index[slot_index]
+			if member_index >= 0 and member_index < other_team_members.size():
+				character = other_team_members[member_index]
+		
+		# Create and add display if we have a character for this slot
+		if character != null:
+			var char_display = create_character_display(character, slot_index)
+			slots[slot_index].add_child(char_display)
 
 func create_character_display(character: Character, slot_index: int) -> Control:
 	var display = Control.new()
@@ -852,6 +858,14 @@ func show_characters_ui():
 	characters_ui.visible = true
 	characters_ui.refresh_characters(unlocked_characters)
 
+func _on_character_removed_from_team(character: Character):
+	remove_from_team(character)
+	if team_ui != null:
+		var total_dps = calculate_team_damage(true)
+		team_ui.refresh_team(active_team, unlocked_characters, total_dps)
+	update_team_display()
+	update_ui()
+
 func show_team_ui():
 	hide_all_uis()
 	
@@ -861,6 +875,7 @@ func show_team_ui():
 		
 		# Connect signals
 		team_ui.character_selected_for_team.connect(_on_character_selected_for_team)
+		team_ui.character_removed_from_team.connect(_on_character_removed_from_team)  # ADD THIS LINE
 		team_ui.formation_changed.connect(_on_formation_changed)
 		team_ui.back_pressed.connect(hide_all_uis)
 	
