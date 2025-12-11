@@ -53,6 +53,10 @@ var equipped_weapon: Character = null
 var is_player_character: bool = false  # True only for the main player character
 var is_in_team: bool = false  # Whether this character is in the active team
 
+# Ability system
+var ability_cooldown: float = 0.0
+var ability_cooldown_max: float = 10.0  # Base cooldown in seconds
+
 # Rarity-based stats
 func get_rarity_multiplier() -> float:
 	match rarity:
@@ -177,3 +181,36 @@ func get_formation_multiplier() -> float:
 			return 0.95 # 5% less damage in back (safer)
 		_:
 			return 1.0
+
+# Ability system methods
+func is_ability_ready() -> bool:
+	return ability_cooldown <= 0.0
+
+func get_ability_cooldown_percent() -> float:
+	if ability_cooldown_max <= 0:
+		return 1.0
+	return 1.0 - (ability_cooldown / ability_cooldown_max)
+
+func start_ability_cooldown():
+	ability_cooldown = ability_cooldown_max
+
+func update_ability_cooldown(delta: float):
+	if ability_cooldown > 0:
+		ability_cooldown = max(0, ability_cooldown - delta)
+
+func get_ability_name() -> String:
+	match role:
+		Role.DPS:
+			return "Strike"
+		Role.TANK:
+			return "Weaken"
+		Role.SUPPORT:
+			return "Empower"
+		_:
+			return "Ability"
+
+func get_ability_damage() -> int:
+	# DPS abilities do 5x normal damage
+	if role == Role.DPS:
+		return get_total_damage() * 5
+	return 0

@@ -46,6 +46,22 @@ var gacha_ui: Control = null
 var characters_ui: Control = null
 var team_ui: Control = null
 
+# Ability system
+var ability_buttons: Array[Button] = []
+var support_buff_active: bool = false
+var support_buff_timer: float = 0.0
+var support_buff_duration: float = 10.0
+var support_buff_multiplier: float = 1.5
+
+var tank_debuff_active: bool = false
+var tank_debuff_timer: float = 0.0
+var tank_debuff_duration: float = 8.0
+var tank_debuff_multiplier: float = 1.3
+
+# Visual indicators
+var support_indicator: Label = null
+var tank_indicator: Label = null
+
 # UI References
 @onready var level_label = $UI/TopPanel/LevelLabel
 @onready var gold_label = $UI/TopPanel/GoldLabel
@@ -122,6 +138,8 @@ func _process(delta):
 	handle_money_generation(delta)
 	handle_boss_timer(delta)
 	handle_auto_attack(delta)
+	update_ability_cooldowns(delta)
+	update_buff_debuff_timers(delta)
 
 func handle_money_generation(delta):
 	money_timer += delta
@@ -160,6 +178,171 @@ func handle_auto_attack(delta):
 		if total_auto_damage > 0:
 			current_enemy.take_damage(total_auto_damage)
 
+func update_ability_cooldowns(delta):
+	for character in active_team:
+		character.update_ability_cooldown(delta)
+	
+	# Update ability button displays
+	update_ability_buttons()
+
+func update_buff_debuff_timers(delta):
+	# Support buff timer
+	if support_buff_active:
+		support_buff_timer -= delta
+		if support_buff_timer <= 0:
+			support_buff_active = false
+			remove_support_indicator()
+	
+	# Tank debuff timer
+	if tank_debuff_active:
+		tank_debuff_timer -= delta
+		if tank_debuff_timer <= 0:
+			tank_debuff_active = false
+			remove_tank_indicator()
+
+func use_ability(slot_index: int):
+	# Map slot index to character
+	var character: Character = null
+	
+	if slot_index == 2:  # Player slot (middle)
+		character = player_character
+	else:
+		# Get non-player team members
+		var other_members = active_team.filter(func(c): return not c.is_player_character)
+		var member_indices = [0, 1, 3, 4]  # Slot positions
+		var list_index = member_indices.find(slot_index)
+		
+		if list_index >= 0 and list_index < other_members.size():
+			character = other_members[list_index]
+	
+	if character == null or not character.is_ability_ready():
+		return
+	
+	# Use ability based on role
+	match character.role:
+		Character.Role.DPS:
+			use_dps_ability(character)
+		Character.Role.SUPPORT:
+			use_support_ability(character)
+		Character.Role.TANK:
+			use_tank_ability(character)
+	
+	# Start cooldown
+	character.start_ability_cooldown()
+	update_ability_buttons()
+
+func use_dps_ability(character: Character):
+	if current_enemy == null:
+		return
+	
+	var damage = character.get_ability_damage()
+	current_enemy.take_damage(damage)
+	
+	# Show large damage number
+	show_big_damage_number(damage)
+	print(character.name, " used DPS ability for ", damage, " damage!")
+
+func use_support_ability(character: Character):
+	support_buff_active = true
+	support_buff_timer = support_buff_duration
+	show_support_indicator()
+	print(character.name, " used Support ability! Team damage buffed!")
+
+func use_tank_ability(character: Character):
+	tank_debuff_active = true
+	tank_debuff_timer = tank_debuff_duration
+	show_tank_indicator()
+	print(character.name, " used Tank ability! Enemies weakened!")
+
+func show_big_damage_number(damage: int):
+	if current_enemy == null:
+		return
+	
+	var damage_label = Label.new()
+	damage_label.text = "-" + str(damage) + "!"
+	damage_label.add_theme_font_size_override("font_size", 36)
+	damage_label.add_theme_color_override("font_color", Color.ORANGE_RED)
+	damage_label.position = Vector2(-30, -80)
+	current_enemy.add_child(damage_label)
+	
+	var tween = create_tween()
+	tween.parallel().tween_property(damage_label, "position", damage_label.position + Vector2(0, -60), 1.5)
+	tween.parallel().tween_property(damage_label, "modulate:a", 0.0, 1.5)
+	tween.tween_callback(damage_label.queue_free)
+
+func show_support_indicator():
+	if support_indicator != null:
+		support_indicator.queue_free()
+	
+	support_indicator = Label.new()
+	support_indicator.text = "⬆"
+	support_indicator.add_theme_font_size_override("font_size", 40)
+	support_indicator.add_theme_color_override("font_color", Color.GREEN)
+	support_indicator.position = Vector2(270, -30)
+	team_container.add_child(support_indicator)
+
+func remove_support_indicator():
+	if support_indicator != null:
+		support_indicator.queue_free()
+		support_indicator = null
+
+func show_tank_indicator():
+	if tank_indicator != null:
+		tank_indicator.queue_free()
+	
+	if current_enemy == null:
+		return
+	
+	tank_indicator = Label.new()
+	tank_indicator.text = "⬇"
+	tank_indicator.add_theme_font_size_override("font_size", 40)
+	tank_indicator.add_theme_color_override("font_color", Color.RED)
+	tank_indicator.position = Vector2(60, -40)
+	current_enemy.add_child(tank_indicator)
+
+func remove_tank_indicator():
+	if tank_indicator != null:
+		tank_indicator.queue_free()
+		tank_indicator = null
+
+func update_ability_buttons():
+	var slot_indices = [0, 1, 2, 3, 4]
+	var team_chars = []
+	
+	# Build list of characters in slot order
+	var other_members = active_team.filter(func(c): return not c.is_player_character)
+	var slot_map = [0, 1, 3, 4]
+	
+	for i in 5:
+		if i == 2:
+			team_chars.append(player_character)
+		else:
+			var list_idx = slot_map.find(i)
+			if list_idx >= 0 and list_idx < other_members.size():
+				team_chars.append(other_members[list_idx])
+			else:
+				team_chars.append(null)
+	
+	# Update each button
+	for i in range(min(ability_buttons.size(), team_chars.size())):
+		var character = team_chars[i]
+		if character == null:
+			continue
+		
+		var button = ability_buttons[i]
+		button.disabled = not character.is_ability_ready()
+		
+		# Find and update cooldown label
+		var display = button.get_parent()
+		if display.has_node("CooldownLabel"):
+			var cooldown_label = display.get_node("CooldownLabel")
+			if character.is_ability_ready():
+				cooldown_label.text = "READY"
+				cooldown_label.add_theme_color_override("font_color", Color.GREEN)
+			else:
+				cooldown_label.text = str(ceil(character.ability_cooldown)) + "s"
+				cooldown_label.add_theme_color_override("font_color", Color.YELLOW)
+
 # ========== TEAM SYSTEM ==========
 
 func calculate_team_damage(include_player: bool = true) -> int:
@@ -180,6 +363,14 @@ func calculate_team_damage(include_player: bool = true) -> int:
 	# Apply team synergies
 	var synergy_multiplier = get_team_synergy_multiplier()
 	total_damage = int(total_damage * synergy_multiplier)
+	
+	# Apply support buff if active
+	if support_buff_active:
+		total_damage = int(total_damage * support_buff_multiplier)
+	
+	# Apply tank debuff if active (enemies take more damage)
+	if tank_debuff_active:
+		total_damage = int(total_damage * tank_debuff_multiplier)
 	
 	return total_damage
 
@@ -335,7 +526,7 @@ func update_team_display():
 		var char_display = create_character_display(character)
 		slots[slot_index].add_child(char_display)
 
-func create_character_display(character: Character) -> Control:
+func create_character_display(character: Character, slot_index: int) -> Control:
 	var display = Control.new()
 	display.custom_minimum_size = Vector2(80, 100)
 	
@@ -353,10 +544,47 @@ func create_character_display(character: Character) -> Control:
 	element_label.add_theme_font_size_override("font_size", 24)
 	display.add_child(element_label)
 	
+	# Ability button
+	var ability_button = Button.new()
+	ability_button.text = character.get_ability_name()
+	ability_button.custom_minimum_size = Vector2(70, 25)
+	ability_button.position = Vector2(5, -30)
+	ability_button.add_theme_font_size_override("font_size", 10)
+	ability_button.pressed.connect(use_ability.bind(slot_index))
+	
+	# Color button based on role
+	match character.role:
+		Character.Role.DPS:
+			ability_button.modulate = Color(1.0, 0.3, 0.3)
+		Character.Role.SUPPORT:
+			ability_button.modulate = Color(0.3, 1.0, 0.3)
+		Character.Role.TANK:
+			ability_button.modulate = Color(0.3, 0.3, 1.0)
+	
+	display.add_child(ability_button)
+	ability_buttons.append(ability_button)
+	
+	# Cooldown timer label
+	var cooldown_label = Label.new()
+	cooldown_label.name = "CooldownLabel"
+	cooldown_label.position = Vector2(10, 65)
+	cooldown_label.custom_minimum_size = Vector2(60, 12)
+	cooldown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cooldown_label.add_theme_font_size_override("font_size", 8)
+	
+	if character.is_ability_ready():
+		cooldown_label.text = "READY"
+		cooldown_label.add_theme_color_override("font_color", Color.GREEN)
+	else:
+		cooldown_label.text = str(ceil(character.ability_cooldown)) + "s"
+		cooldown_label.add_theme_color_override("font_color", Color.YELLOW)
+	
+	display.add_child(cooldown_label)
+	
 	# Character name
 	var name_label = Label.new()
 	name_label.text = character.name
-	name_label.position = Vector2(0, 70)
+	name_label.position = Vector2(0, 78)
 	name_label.custom_minimum_size = Vector2(80, 15)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_font_size_override("font_size", 10)
@@ -366,7 +594,7 @@ func create_character_display(character: Character) -> Control:
 	# Level label
 	var level_label = Label.new()
 	level_label.text = "Lv." + str(character.level)
-	level_label.position = Vector2(0, 85)
+	level_label.position = Vector2(0, 92)
 	level_label.custom_minimum_size = Vector2(80, 12)
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_label.add_theme_font_size_override("font_size", 9)
@@ -1003,6 +1231,20 @@ func _input(event):
 		if current_enemy != null and event.button_index == MOUSE_BUTTON_LEFT:
 			# Player damage is calculated as total team damage
 			current_enemy.take_damage(player_damage)
+	
+	# Ability hotkeys (1-5)
+	if event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_1:
+				use_ability(0)
+			KEY_2:
+				use_ability(1)
+			KEY_3:
+				use_ability(2)  # Player
+			KEY_4:
+				use_ability(3)
+			KEY_5:
+				use_ability(4)
 	
 	# Cheat code to reset progress (Press R key)
 	if event is InputEventKey and event.pressed and event.keycode == KEY_R:
