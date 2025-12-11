@@ -50,7 +50,8 @@ func create_character_button(character: Character) -> Button:
 	var button = Button.new()
 	
 	# Enhanced button text with more info
-	var button_text = character.get_element_icon() + " " + character.name + " (Lv." + str(character.level) + ")"
+	var button_text = character.name + " (Lv." + str(character.level) + ")"
+	#var button_text = character.get_element_icon() + " " + character.name + " (Lv." + str(character.level) + ")"
 	
 	if character.is_in_team:
 		button_text = "[IN TEAM] " + button_text

@@ -306,24 +306,12 @@ func remove_tank_indicator():
 		tank_indicator = null
 
 func update_ability_buttons():
-	# Update each button based on its slot index
-	for i in range(ability_buttons.size()):
-		var button = ability_buttons[i]
-		var slot_index = i  # Button index matches slot index now
+	# Simply iterate through all buttons and update based on stored character
+	for button in ability_buttons:
+		if not button.has_meta("character"):
+			continue
 		
-		# Find the character for this slot
-		var character: Character = null
-		
-		if slot_index == 2:
-			character = player_character
-		else:
-			var other_members = active_team.filter(func(c): return not c.is_player_character)
-			var slot_map = [0, 1, -1, 2, 3]  # Maps slot to member index
-			var member_index = slot_map[slot_index]
-			
-			if member_index >= 0 and member_index < other_members.size():
-				character = other_members[member_index]
-		
+		var character = button.get_meta("character") as Character
 		if character == null:
 			continue
 		
@@ -544,11 +532,13 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 	display.add_child(sprite)
 	
 	# Element icon overlay
-	var element_label = Label.new()
-	element_label.text = character.get_element_icon()
-	element_label.position = Vector2(15, 10)
-	element_label.add_theme_font_size_override("font_size", 24)
-	display.add_child(element_label)
+	var element_icon = TextureRect.new()
+	element_icon.texture = character.get_element_icon_texture()
+	element_icon.custom_minimum_size = Vector2(24, 24)
+	element_icon.position = Vector2(18, 8)
+	element_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	element_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	display.add_child(element_icon)
 	
 	# Ability button
 	var ability_button = Button.new()
@@ -557,6 +547,9 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 	ability_button.position = Vector2(5, -30)
 	ability_button.add_theme_font_size_override("font_size", 10)
 	ability_button.pressed.connect(use_ability.bind(slot_index))
+	
+	# STORE CHARACTER REFERENCE IN BUTTON METADATA
+	ability_button.set_meta("character", character)
 	
 	# Color button based on role
 	match character.role:

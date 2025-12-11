@@ -146,21 +146,40 @@ func get_element_name() -> String:
 func get_element_icon() -> String:
 	match element:
 		Element.FIRE:
-			return "🔥"
+			return "Fire"
 		Element.ICE:
-			return "❄️"
+			return "Ice"
 		Element.LIGHTNING:
-			return "⚡"
+			return "Lightning"
 		Element.EARTH:
-			return "🌍"
+			return "Earth"
 		Element.LIGHT:
-			return "✨"
+			return "Light"
 		Element.DARK:
-			return "🌙"
+			return "Dark"
 		Element.NEUTRAL:
-			return "⭕"
+			return "Neutral"
 		_:
 			return ""
+
+func get_element_icon_texture() -> Texture2D:
+	match element:
+		Element.FIRE:
+			return load("res://icons/elements/fire.png")
+		Element.ICE:
+			return load("res://icons/elements/ice.png")
+		Element.LIGHTNING:
+			return load("res://icons/elements/lightning.png")
+		Element.EARTH:
+			return load("res://icons/elements/earth.png")
+		Element.LIGHT:
+			return load("res://icons/elements/light.png")
+		Element.DARK:
+			return load("res://icons/elements/dark.png")
+		Element.NEUTRAL:
+			return load("res://icons/elements/neutral.png")
+		_:
+			return null
 
 func get_role_multiplier() -> float:
 	match role:
