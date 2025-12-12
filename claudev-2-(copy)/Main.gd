@@ -1,8 +1,9 @@
 # Gacha Functions
 extends Control
 
-# Preload the Character class
+# Preload
 const Character = preload("res://Character.gd")
+const PrestigeSystem = preload("res://PrestigeSystem.gd")
 
 # Save file path
 const SAVE_FILE_PATH = "user://savegame.save"
@@ -62,6 +63,14 @@ var tank_debuff_multiplier: float = 1.3
 var support_indicator: Label = null
 var tank_indicator: Label = null
 
+# Prestige system
+var prestige_system: PrestigeSystem
+var prestige_ui: Control = null
+var prestige_scene = preload("res://PrestigeUI.tscn")
+
+# Auto-gold timer
+var auto_gold_timer: float = 0.0
+
 # UI References
 @onready var level_label = $UI/TopPanel/LevelLabel
 @onready var gold_label = $UI/TopPanel/GoldLabel
@@ -77,6 +86,7 @@ var tank_indicator: Label = null
 @onready var gacha_button = $UI/BottomPanel/GachaButton
 @onready var characters_button = $UI/BottomPanel/CharactersButton
 @onready var team_button = $UI/BottomPanel/TeamButton
+@onready var prestige_button = $UI/BottomPanel/PrestigeButton
 
 # Character system
 var unlocked_characters: Array[Character] = []
@@ -89,6 +99,7 @@ const MAX_TEAM_SIZE = 5
 
 func _ready():
 	gacha_system = GachaSystem.new()
+	prestige_system = PrestigeSystem.new()
 	
 	# Try to load saved game first
 	if load_game():
@@ -106,6 +117,7 @@ func _ready():
 	gacha_button.pressed.connect(_on_gacha_button_pressed)
 	characters_button.pressed.connect(_on_characters_button_pressed)
 	team_button.pressed.connect(_on_team_button_pressed)
+	prestige_button.pressed.connect(_on_prestige_button_pressed)
 	
 	# Hide boss timer initially
 	boss_timer_label.visible = false
@@ -140,14 +152,18 @@ func _process(delta):
 	handle_auto_attack(delta)
 	update_ability_cooldowns(delta)
 	update_buff_debuff_timers(delta)
+	handle_auto_gold(delta)
 
 func handle_money_generation(delta):
-	money_timer += delta
+	# Apply prestige speed multiplier
+	var speed_multiplier = prestige_system.get_money_speed_multiplier()
+	var adjusted_delta = delta * speed_multiplier
+	
+	money_timer += adjusted_delta
 	if money_timer >= money_generation_interval:
 		money_timer = 0.0
 		money += 1
 		update_ui()
-		print("Generated 1 money! Total: ", money)
 
 func handle_boss_timer(delta):
 	if is_boss_level and current_enemy != null:
@@ -178,9 +194,22 @@ func handle_auto_attack(delta):
 		if total_auto_damage > 0:
 			current_enemy.take_damage(total_auto_damage)
 
+func handle_auto_gold(delta):
+	var auto_gold_rate = prestige_system.get_auto_gold_rate()
+	if auto_gold_rate > 0:
+		auto_gold_timer += delta
+		if auto_gold_timer >= 1.0:
+			auto_gold_timer = 0.0
+			var gold_gain = int(auto_gold_rate)
+			gold += gold_gain
+
 func update_ability_cooldowns(delta):
+	# Apply prestige cooldown reduction
+	var cooldown_reduction = prestige_system.get_cooldown_reduction()
+	var adjusted_delta = delta * (1.0 + cooldown_reduction)
+	
 	for character in active_team:
-		character.update_ability_cooldown(delta)
+		character.update_ability_cooldown(adjusted_delta)
 	
 	# Update ability button displays
 	update_ability_buttons()
@@ -357,6 +386,15 @@ func calculate_team_damage(include_player: bool = true) -> int:
 	if tank_debuff_active:
 		total_damage = int(total_damage * tank_debuff_multiplier)
 	
+	# Apply prestige damage multiplier
+	total_damage = int(total_damage * prestige_system.get_damage_multiplier())
+	
+	# Apply critical hit chance
+	var crit_chance = prestige_system.get_crit_chance()
+	if crit_chance > 0 and randf() <= crit_chance:
+		total_damage = total_damage * 2
+		print("CRITICAL HIT! x2 damage")
+	
 	return total_damage
 
 func get_team_synergy_multiplier() -> float:
@@ -437,7 +475,8 @@ func spawn_enemy():
 	# Configure enemy based on level and boss status
 	if is_boss_level:
 		current_enemy.setup_as_boss(current_level)
-		boss_timer = boss_time_limit
+		# Apply boss timer extension from prestige
+		boss_timer = boss_time_limit + prestige_system.get_boss_timer_extension()
 		boss_timer_label.visible = true
 		boss_timer_label.text = "Boss Timer: " + str(int(boss_timer))
 	else:
@@ -448,10 +487,12 @@ func spawn_enemy():
 	current_enemy.enemy_defeated.connect(_on_enemy_defeated)
 
 func _on_enemy_defeated(gold_reward: int):
-	gold += gold_reward
+	# Apply prestige gold multiplier
+	var multiplied_gold = int(gold_reward * prestige_system.get_gold_multiplier())
+	gold += multiplied_gold
 	current_level += 1
 	
-	print("Enemy defeated! Gold: +", gold_reward, " Level: ", current_level)
+	print("Enemy defeated! Gold: +", multiplied_gold, " Level: ", current_level)
 	
 	# Reset boss status
 	if is_boss_level:
@@ -460,7 +501,7 @@ func _on_enemy_defeated(gold_reward: int):
 	
 	spawn_enemy()
 	update_ui()
-	save_game()  # Save on level up
+	save_game()
 
 func update_ui():
 	level_label.text = "Level: " + str(current_level)
@@ -617,7 +658,8 @@ func save_game():
 		"current_level": current_level,
 		"characters": serialize_characters(),
 		"gacha_pity": gacha_system.get_pity_info(),
-		"active_team_ids": serialize_team()
+		"active_team_ids": serialize_team(),
+		"prestige": prestige_system.get_save_data()
 	}
 	
 	var json_string = JSON.stringify(save_data)
@@ -663,6 +705,10 @@ func load_game() -> bool:
 	var pity_info = save_data.get("gacha_pity", {})
 	gacha_system.character_pity_count = pity_info.get("character_pity", 0)
 	gacha_system.weapon_pity_count = pity_info.get("weapon_pity", 0)
+	
+	# Load prestige data
+	var prestige_data = save_data.get("prestige", {})
+	prestige_system.load_save_data(prestige_data)
 	
 	return true
 
@@ -885,6 +931,8 @@ func hide_all_uis():
 		characters_ui.visible = false
 	if team_ui != null:
 		team_ui.visible = false
+	if prestige_ui != null:  # ADD THIS
+		prestige_ui.visible = false
 
 # ========== SHOP FUNCTIONS ==========
 
@@ -1084,7 +1132,7 @@ func show_character_popup(character: Character):
 	# Create popup window
 	var popup = AcceptDialog.new()
 	popup.title = character.name + " Details"
-	popup.size = Vector2(450, 500)
+	popup.size = Vector2(450, 550)
 	
 	# Create content container
 	var vbox = VBoxContainer.new()
@@ -1121,16 +1169,30 @@ func show_character_popup(character: Character):
 	if character.character_type == Character.Type.CHARACTER:
 		info_label.text += "Role: " + character.get_role_name() + "\n"
 		info_label.text += "Element: " + character.get_element_name() + "\n"
-		info_label.text += "Formation: " + ("FRONT" if character.formation_position == Character.Formation.FRONT else "BACK") + "\n"
-		info_label.text += "Total Damage: " + str(character.get_total_damage()) + "\n"
-		info_label.text += "In Team: " + ("Yes" if character.is_in_team else "No") + "\n"
+		
+		# Formation info with modifiers
+		info_label.text += "\n=== Formation ===" + "\n"
+		info_label.text += character.get_formation_display_text() + "\n"
+		
+		# Show actual modified stats
+		var base_dmg = character.get_total_damage()
+		var formation_mult = character.get_formation_multiplier()
+		var modified_dmg = int(base_dmg * formation_mult)
+		info_label.text += "Base Damage: " + str(base_dmg) + " → " + str(modified_dmg) + "\n"
+		
+		var base_cooldown = character.ability_cooldown_max
+		var cooldown_mult = character.get_formation_cooldown_multiplier()
+		var modified_cooldown = base_cooldown * cooldown_mult
+		info_label.text += "Ability Cooldown: " + str(base_cooldown) + "s → " + str(modified_cooldown) + "s\n"
+		
+		info_label.text += "\nIn Team: " + ("Yes" if character.is_in_team else "No") + "\n"
 	else:
 		info_label.text += "Weapon Damage: " + str(character.get_weapon_damage()) + "\n"
 	
 	if character.duplicate_count > 0:
 		info_label.text += "Duplicates: " + str(character.duplicate_count) + " (+Damage Bonus)\n"
 	
-	info_label.text += "Upgrade Cost: " + str(character.get_upgrade_cost()) + " Gold"
+	info_label.text += "\nUpgrade Cost: " + str(character.get_upgrade_cost()) + " Gold"
 	vbox.add_child(info_label)
 	
 	# Show upgrade button for both characters and weapons
@@ -1175,7 +1237,7 @@ func show_character_popup(character: Character):
 			vbox.add_child(weapon_select_label)
 			
 			var weapon_scroll = ScrollContainer.new()
-			weapon_scroll.custom_minimum_size = Vector2(400, 100)
+			weapon_scroll.custom_minimum_size = Vector2(400, 80)
 			vbox.add_child(weapon_scroll)
 			
 			var weapon_vbox = VBoxContainer.new()
@@ -1230,6 +1292,63 @@ func _on_unequip_weapon(character: Character, popup: AcceptDialog):
 	popup.queue_free()
 	# Reopen the popup with updated info
 	show_character_popup(character)
+
+# ========== PRESTIGE UI FUNCTIONS ==========
+func _on_prestige_button_pressed():
+	show_prestige_ui()
+
+func show_prestige_ui():
+	hide_all_uis()
+	
+	if prestige_ui == null:
+		prestige_ui = prestige_scene.instantiate()
+		add_child(prestige_ui)
+		
+		# Connect signals
+		prestige_ui.upgrade_purchased.connect(_on_prestige_upgrade_purchased)
+		prestige_ui.ascend_requested.connect(_on_ascend_requested)
+		prestige_ui.back_pressed.connect(hide_all_uis)
+	
+	prestige_ui.setup(prestige_system)
+	prestige_ui.visible = true
+	prestige_ui.update_ascend_button(current_level)
+
+func _on_prestige_upgrade_purchased(upgrade_id: int):
+	print("Purchased upgrade: ", upgrade_id)
+	save_game()
+
+func _on_ascend_requested():
+	# Show confirmation dialog
+	var confirm = ConfirmationDialog.new()
+	confirm.dialog_text = "Are you sure you want to Ascend?\n\nYou will:\n• Reset to Level 1\n• Keep all characters and upgrades\n• Gain " + str(prestige_system.calculate_prestige_points_from_level(current_level)) + " Prestige Points"
+	confirm.title = "Confirm Ascension"
+	add_child(confirm)
+	
+	confirm.confirmed.connect(_perform_ascension.bind(confirm))
+	confirm.canceled.connect(confirm.queue_free)
+	confirm.popup_centered()
+
+func _perform_ascension(dialog: ConfirmationDialog):
+	# Award prestige points
+	var points = prestige_system.calculate_prestige_points_from_level(current_level)
+	prestige_system.add_prestige_points(points)
+	
+	# Reset level
+	current_level = 1
+	
+	# Spawn new enemy
+	spawn_enemy()
+	
+	# Save and refresh UI
+	save_game()
+	update_ui()
+	
+	if prestige_ui != null:
+		prestige_ui.setup(prestige_system)
+		prestige_ui.update_ascend_button(current_level)
+	
+	dialog.queue_free()
+	print("Ascended! Gained ", points, " prestige points")
 
 # ========== INPUT HANDLING ==========
 

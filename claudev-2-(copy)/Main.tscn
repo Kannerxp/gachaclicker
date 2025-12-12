@@ -106,6 +106,12 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Collection"
 
+[node name="PrestigeButton" type="Button" parent="UI/BottomPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.843137, 0, 1)
+theme_override_font_sizes/font_size = 16
+text = "Prestige"
+
 [node name="EnemyContainer" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 8

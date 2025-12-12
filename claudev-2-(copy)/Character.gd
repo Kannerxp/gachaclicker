@@ -30,8 +30,8 @@ enum Element {
 }
 
 enum Formation {
-	FRONT,    # Front row - takes more damage but deals more
-	BACK      # Back row - takes less damage but deals less
+	FRONT,    # Front row - more damage, slower abilities
+	BACK      # Back row - less damage, faster abilities
 }
 
 @export var name: String = ""
@@ -195,23 +195,38 @@ func get_role_multiplier() -> float:
 func get_formation_multiplier() -> float:
 	match formation_position:
 		Formation.FRONT:
-			return 1.1  # 10% more damage in front
+			return 1.15  # 15% more damage in front
 		Formation.BACK:
-			return 0.95 # 5% less damage in back (safer)
+			return 0.90  # 10% less damage in back (safer)
 		_:
 			return 1.0
+
+func get_formation_cooldown_multiplier() -> float:
+	match formation_position:
+		Formation.FRONT:
+			return 1.20  # 20% slower cooldown (longer wait)
+		Formation.BACK:
+			return 0.75  # 25% faster cooldown (shorter wait)
+		_:
+			return 1.0
+
+func get_modified_ability_cooldown() -> float:
+	var base_cooldown = ability_cooldown_max * get_formation_cooldown_multiplier()
+	# This will be applied from main when available
+	return base_cooldown
 
 # Ability system methods
 func is_ability_ready() -> bool:
 	return ability_cooldown <= 0.0
 
 func get_ability_cooldown_percent() -> float:
-	if ability_cooldown_max <= 0:
+	var modified_max = get_modified_ability_cooldown()
+	if modified_max <= 0:
 		return 1.0
-	return 1.0 - (ability_cooldown / ability_cooldown_max)
+	return 1.0 - (ability_cooldown / modified_max)
 
 func start_ability_cooldown():
-	ability_cooldown = ability_cooldown_max
+	ability_cooldown = get_modified_ability_cooldown()
 
 func update_ability_cooldown(delta: float):
 	if ability_cooldown > 0:
@@ -233,3 +248,12 @@ func get_ability_damage() -> int:
 	if role == Role.DPS:
 		return get_total_damage() * 5
 	return 0
+
+func get_formation_display_text() -> String:
+	match formation_position:
+		Formation.FRONT:
+			return "FRONT (+15% DMG, +20% Cooldown)"
+		Formation.BACK:
+			return "BACK (-10% DMG, -25% Cooldown)"
+		_:
+			return "UNKNOWN"

@@ -85,6 +85,17 @@ func update_team_display():
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	team_container.add_child(header)
 	
+	# Add formation guide
+	var guide = Label.new()
+	guide.text = "FRONT: +15% DMG, +20% Cooldown\nBACK: -10% DMG, -25% Cooldown"
+	guide.add_theme_font_size_override("font_size", 10)
+	guide.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	guide.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	team_container.add_child(guide)
+	
+	var separator1 = HSeparator.new()
+	team_container.add_child(separator1)
+	
 	# Add team members
 	for character in current_team:
 		var member_container = create_team_member_display(character)
@@ -93,13 +104,36 @@ func update_team_display():
 func create_team_member_display(character: Character) -> Control:
 	var vbox = VBoxContainer.new()
 	
-	# Character info button
-	var info_button = Button.new()
-	var formation_text = " [FRONT]" if character.formation_position == Character.Formation.FRONT else " [BACK]"
-	info_button.text = character.get_element_icon() + " " + character.name + formation_text
-	info_button.modulate = character.get_rarity_color()
-	info_button.custom_minimum_size = Vector2(280, 50)
-	vbox.add_child(info_button)
+	# Character info with formation
+	var info_container = HBoxContainer.new()
+	vbox.add_child(info_container)
+	
+	# Element icon
+	var element_label = Label.new()
+	element_label.text = character.get_element_icon()
+	element_label.add_theme_font_size_override("font_size", 16)
+	info_container.add_child(element_label)
+	
+	# Character name + formation
+	var name_label = Label.new()
+	var formation_icon = "▲" if character.formation_position == Character.Formation.FRONT else "▼"
+	name_label.text = character.name + " " + formation_icon
+	name_label.modulate = character.get_rarity_color()
+	name_label.add_theme_font_size_override("font_size", 14)
+	info_container.add_child(name_label)
+	
+	# Stats display with formation modifiers
+	var stats_label = Label.new()
+	var base_dmg = character.get_total_damage()
+	var modified_dmg = int(base_dmg * character.get_formation_multiplier())
+	var base_cd = character.ability_cooldown_max
+	var modified_cd = base_cd * character.get_formation_cooldown_multiplier()
+	
+	stats_label.text = "DMG: " + str(base_dmg) + " → " + str(modified_dmg)
+	stats_label.text += " | CD: " + str(base_cd) + "s → " + str(snapped(modified_cd, 0.1)) + "s"
+	stats_label.add_theme_font_size_override("font_size", 10)
+	stats_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	vbox.add_child(stats_label)
 	
 	# Action buttons container
 	var button_container = HBoxContainer.new()
@@ -121,10 +155,22 @@ func create_team_member_display(character: Character) -> Control:
 	
 	# Formation toggle button
 	var formation_button = Button.new()
-	formation_button.text = "⇄ Formation"
+	var current_formation_text = "FRONT" if character.formation_position == Character.Formation.FRONT else "BACK"
+	var next_formation_text = "BACK" if character.formation_position == Character.Formation.FRONT else "FRONT"
+	formation_button.text = "→ " + next_formation_text
 	formation_button.custom_minimum_size = Vector2(90, 30)
+	
+	# Color code the button
+	if character.formation_position == Character.Formation.FRONT:
+		formation_button.modulate = Color(0.8, 1.0, 0.8)  # Green tint for switching to back
+	else:
+		formation_button.modulate = Color(1.0, 0.8, 0.8)  # Red tint for switching to front
+	
 	formation_button.pressed.connect(_on_toggle_formation.bind(character))
 	button_container.add_child(formation_button)
+	
+	var separator = HSeparator.new()
+	vbox.add_child(separator)
 	
 	return vbox
 
@@ -231,9 +277,10 @@ func _on_remove_from_team(character: Character):
 func _on_toggle_formation(character: Character):
 	if character.formation_position == Character.Formation.FRONT:
 		character.formation_position = Character.Formation.BACK
+		print(character.name, " moved to BACK (-10% DMG, -25% Cooldown)")
 	else:
 		character.formation_position = Character.Formation.FRONT
+		print(character.name, " moved to FRONT (+15% DMG, +20% Cooldown)")
 	
 	formation_changed.emit(character, character.formation_position)
 	update_team_display()
-	print(character.name, " moved to ", "BACK" if character.formation_position == Character.Formation.BACK else "FRONT")
