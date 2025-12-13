@@ -40,6 +40,10 @@ var shop_scene = preload("res://ShopUI.tscn")
 var gacha_scene = preload("res://GachaUI.tscn")
 var characters_scene = preload("res://CharactersUI.tscn")
 var team_scene = preload("res://TeamUI.tscn")
+var bank_scene = preload("res://BankUI.tscn")
+var settings_scene = preload("res://SettingsUI.tscn")
+var bank_ui: Control = null
+var settings_ui: Control = null
 
 # UI Instance references
 var shop_ui: Control = null
@@ -72,21 +76,22 @@ var prestige_scene = preload("res://PrestigeUI.tscn")
 var auto_gold_timer: float = 0.0
 
 # UI References
-@onready var level_label = $UI/TopPanel/LevelLabel
-@onready var gold_label = $UI/TopPanel/GoldLabel
-@onready var gems_label = $UI/TopPanel/GemsLabel
-@onready var money_label = $UI/TopPanel/MoneyLabel
-@onready var pull_currency_label = $UI/TopPanel/PullCurrencyLabel
+@onready var level_label = $UI/TopBar/TopBarContent/CenterSection/LevelLabel
+@onready var gold_label = $UI/TopBar/TopBarContent/LeftSection/GoldLabel
+@onready var gems_button = $UI/TopBar/TopBarContent/LeftSection/GemsButton
+@onready var prestige_button = $UI/TopBar/TopBarContent/RightSection/PrestigeButton
+@onready var settings_button = $UI/TopBar/TopBarContent/RightSection/SettingsButton
 @onready var enemy_container = $EnemyContainer
 @onready var boss_timer_label = $UI/BossTimerLabel
 @onready var team_container = $TeamDisplay/TeamContainer
 
-# UI Buttons
-@onready var shop_button = $UI/BottomPanel/ShopButton
-@onready var gacha_button = $UI/BottomPanel/GachaButton
-@onready var characters_button = $UI/BottomPanel/CharactersButton
-@onready var team_button = $UI/BottomPanel/TeamButton
-@onready var prestige_button = $UI/BottomPanel/PrestigeButton
+# Bottom bar buttons
+@onready var bank_button = $UI/BottomBar/BottomBarContent/BankButton
+@onready var team_button = $UI/BottomBar/BottomBarContent/TeamButton
+@onready var shop_button = $UI/BottomBar/BottomBarContent/ShopButton
+@onready var gacha_button = $UI/BottomBar/BottomBarContent/GachaButton
+@onready var collection_button = $UI/BottomBar/BottomBarContent/CollectionButton
+@onready var story_button = $UI/BottomBar/BottomBarContent/StoryButton
 
 # Character system
 var unlocked_characters: Array[Character] = []
@@ -113,11 +118,15 @@ func _ready():
 	update_team_display()
 	
 	# Connect UI buttons
+	bank_button.pressed.connect(_on_bank_button_pressed)
 	shop_button.pressed.connect(_on_shop_button_pressed)
 	gacha_button.pressed.connect(_on_gacha_button_pressed)
-	characters_button.pressed.connect(_on_characters_button_pressed)
+	collection_button.pressed.connect(_on_characters_button_pressed)
 	team_button.pressed.connect(_on_team_button_pressed)
 	prestige_button.pressed.connect(_on_prestige_button_pressed)
+	settings_button.pressed.connect(_on_settings_button_pressed)
+	gems_button.pressed.connect(_on_gems_button_pressed)
+	story_button.pressed.connect(_on_story_button_pressed)
 	
 	# Hide boss timer initially
 	boss_timer_label.visible = false
@@ -506,9 +515,11 @@ func _on_enemy_defeated(gold_reward: int):
 func update_ui():
 	level_label.text = "Level: " + str(current_level)
 	gold_label.text = "Gold: " + str(gold)
-	gems_label.text = "Gems: " + str(gems)
-	money_label.text = "Money: " + str(money)
-	pull_currency_label.text = "Pulls: " + str(pull_currency)
+	gems_button.text = "💎 Gems: " + str(gems) + " (+)"
+	
+# Update prestige button
+	var pp_to_gain = prestige_system.calculate_prestige_points_from_level(current_level)
+	prestige_button.text = "Prestige\n(+" + str(pp_to_gain) + "pp)"
 	
 	# Update player damage based on team damage
 	player_damage = calculate_team_damage(true)
@@ -518,6 +529,10 @@ func update_ui():
 		shop_ui.update_button_states(money, gems)
 	if gacha_ui != null and gacha_ui.visible:
 		gacha_ui.update_button_states(pull_currency)
+	if prestige_ui != null and prestige_ui.visible:
+		prestige_ui.update_ascend_button(current_level)
+	if bank_ui != null and bank_ui.visible:
+		bank_ui.setup(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
 
 func update_team_display():
 	# Get all character slots
@@ -842,6 +857,25 @@ func _on_characters_button_pressed():
 func _on_team_button_pressed():
 	show_team_ui()
 
+func _on_bank_button_pressed():
+	show_bank_ui()
+
+func _on_gems_button_pressed():
+	# Gems button opens the shop
+	show_shop_ui()
+
+func _on_settings_button_pressed():
+	show_settings_ui()
+
+func _on_story_button_pressed():
+	# Placeholder for story system
+	var info = AcceptDialog.new()
+	info.dialog_text = "Story system coming soon!\n\nThis will feature:\n• Campaign missions\n• Lore and worldbuilding\n• Unlockable cutscenes\n• Story rewards"
+	info.title = "Coming Soon"
+	add_child(info)
+	info.popup_centered()
+	info.confirmed.connect(info.queue_free)
+
 func show_shop_ui():
 	hide_all_uis()
 	
@@ -931,8 +965,12 @@ func hide_all_uis():
 		characters_ui.visible = false
 	if team_ui != null:
 		team_ui.visible = false
-	if prestige_ui != null:  # ADD THIS
+	if prestige_ui != null:
 		prestige_ui.visible = false
+	if bank_ui != null:
+		bank_ui.visible = false
+	if settings_ui != null:
+		settings_ui.visible = false
 
 # ========== SHOP FUNCTIONS ==========
 
@@ -1349,6 +1387,32 @@ func _perform_ascension(dialog: ConfirmationDialog):
 	
 	dialog.queue_free()
 	print("Ascended! Gained ", points, " prestige points")
+
+# ========== BANK UI FUNCTIONS ==========
+
+func show_bank_ui():
+	hide_all_uis()
+	
+	if bank_ui == null:
+		bank_ui = bank_scene.instantiate()
+		add_child(bank_ui)
+		bank_ui.back_pressed.connect(hide_all_uis)
+	
+	bank_ui.visible = true
+	bank_ui.setup(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
+
+# ========== SETTINGS UI FUNCTIONS ==========
+
+func show_settings_ui():
+	hide_all_uis()
+	
+	if settings_ui == null:
+		settings_ui = settings_scene.instantiate()
+		add_child(settings_ui)
+		settings_ui.back_pressed.connect(hide_all_uis)
+		settings_ui.reset_progress_requested.connect(reset_progress)
+	
+	settings_ui.visible = true
 
 # ========== INPUT HANDLING ==========
 

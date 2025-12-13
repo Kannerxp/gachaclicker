@@ -249,4 +249,10 @@ func get_save_data() -> Dictionary:
 # Deserialize from save
 func load_save_data(data: Dictionary):
 	prestige_points = data.get("prestige_points", 0)
-	purchased_upgrades = data.get("purchased_upgrades", [])
+	
+	# Convert generic Array to Array[int]
+	var loaded_upgrades = data.get("purchased_upgrades", [])
+	purchased_upgrades.clear()
+	for upgrade_id in loaded_upgrades:
+		if upgrade_id is int:
+			purchased_upgrades.append(upgrade_id)
