@@ -1,0 +1,12 @@
+config_version=5
+
+[application]
+
+config/name="OG Claudev2"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.5", "Mobile")
+config/icon="res://icon.svg"
+
+[rendering]
+
+renderer/rendering_method="mobile"
