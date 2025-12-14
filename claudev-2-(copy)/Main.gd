@@ -517,10 +517,25 @@ func _on_enemy_defeated(gold_reward: int):
 	update_ui()
 	save_game()
 
+func update_label_with_icon(label: Label, icon_type: String, text: String):
+	# Try to load icon texture
+	var icon_texture = SpriteManager.get_icon_texture(icon_type)
+
+	if icon_texture != null:
+		# If we have an icon, just show the text (icon will be separate)
+		label.text = text
+
 func update_ui():
 	level_label.text = "Level: " + str(current_level)
-	gold_label.text = "Gold: " + str(gold)
-	gems_button.text = "💎 Gems: " + str(gems) + " (+)"
+	
+	# Update with icons or emojis
+	update_label_with_icon(gold_label, "gold", "Gold: " + str(gold))
+	
+	# Gems button text
+	var gems_emoji = ""
+	if SpriteManager.get_icon_texture("gems") == null:
+		gems_emoji = "💎 "
+	gems_button.text = gems_emoji + "Gems: " + str(gems) + " (+)"
 	
 # Update prestige button
 	var pp_to_gain = prestige_system.calculate_prestige_points_from_level(current_level)
@@ -583,23 +598,27 @@ func update_team_display():
 
 func create_character_display(character: Character, slot_index: int) -> Control:
 	var display = Control.new()
-	display.custom_minimum_size = Vector2(80, 100)
+	display.custom_minimum_size = Vector2(80, 120)
 	
-	# Character sprite/box
-	var sprite = ColorRect.new()
-	sprite.custom_minimum_size = Vector2(60, 60)
+	# Character sprite (using SpriteManager)
+	var sprite = SpriteManager.create_character_sprite(
+		character.character_id,
+		character.get_rarity_color(),
+		Vector2(60, 60)
+	)
 	sprite.position = Vector2(10, 5)
-	sprite.color = character.get_rarity_color()
 	display.add_child(sprite)
 	
-	# Element icon overlay
-	var element_icon = TextureRect.new()
-	element_icon.texture = character.get_element_icon_texture()
-	element_icon.custom_minimum_size = Vector2(24, 24)
-	element_icon.position = Vector2(18, 8)
-	element_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	element_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	display.add_child(element_icon)
+	# Element icon overlay (smaller, in corner)
+	var element_texture = character.get_element_icon_texture()
+	if element_texture != null:
+		var element_icon = TextureRect.new()
+		element_icon.texture = element_texture
+		element_icon.custom_minimum_size = Vector2(20, 20)
+		element_icon.position = Vector2(50, 8)
+		element_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		element_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		display.add_child(element_icon)
 	
 	# Ability button
 	var ability_button = Button.new()
@@ -875,7 +894,7 @@ func _on_settings_button_pressed():
 func _on_story_button_pressed():
 	# Placeholder for story system
 	var info = AcceptDialog.new()
-	info.dialog_text = "Story system coming soon!\n\nThis will feature:\n• Campaign missions\n• Lore and worldbuilding\n• Unlockable cutscenes\n• Story rewards"
+	info.dialog_text = "Story system coming soon\n\nThis will feature:\n• Revamped upgrading system\n• Story\n• Events\n• Story rewards"
 	info.title = "Coming Soon"
 	add_child(info)
 	info.popup_centered()

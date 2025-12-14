@@ -19,7 +19,7 @@ func _on_reset_pressed():
 	# Show confirmation dialog
 	var confirm = ConfirmationDialog.new()
 	confirm.dialog_text = "Are you sure you want to RESET ALL PROGRESS?\n\nThis will delete:\n• All characters\n• All prestige upgrades\n• All currencies\n• Everything!\n\nThis action cannot be undone!"
-	confirm.title = "⚠️ RESET PROGRESS ⚠️"
+	confirm.title = "RESET PROGRESS"
 	add_child(confirm)
 	
 	confirm.confirmed.connect(_confirm_reset.bind(confirm))

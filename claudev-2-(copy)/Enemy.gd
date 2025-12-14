@@ -10,7 +10,7 @@ var is_boss: bool = false
 
 @onready var health_bar = $HealthBar
 @onready var health_label = $HealthLabel
-@onready var sprite = $EnemySprite
+@onready var sprite_container = $SpriteContainer
 @onready var boss_indicator = $BossIndicator
 
 func _ready():
@@ -22,9 +22,8 @@ func setup_as_normal(level: int):
 	current_health = max_health
 	gold_reward = 5 + (level * 2)   # Gold scales with level
 	
-	sprite.modulate = Color.WHITE
 	boss_indicator.visible = false
-	
+	setup_sprite()
 	update_health_display()
 
 func setup_as_boss(level: int):
@@ -33,11 +32,19 @@ func setup_as_boss(level: int):
 	current_health = max_health
 	gold_reward = 50 + (level * 10)  # Bosses give more gold
 	
-	sprite.modulate = Color.RED  # Make bosses red
 	boss_indicator.visible = true
 	boss_indicator.text = "BOSS"
-	
+	setup_sprite()
 	update_health_display()
+
+func setup_sprite():
+	# Clear existing sprite
+	for child in sprite_container.get_children():
+		child.queue_free()
+	
+	# Create sprite using SpriteManager
+	var sprite = SpriteManager.create_enemy_sprite(is_boss, Vector2(150, 130))
+	sprite_container.add_child(sprite)
 
 func take_damage(damage: int):
 	current_health -= damage
@@ -57,11 +64,12 @@ func update_health_display():
 	health_label.text = str(current_health) + "/" + str(max_health)
 
 func show_damage_number(damage: int):
-	# Simple damage number effect (you can enhance this later)
+	# Simple damage number effect
 	var tween = create_tween()
 	var damage_label = Label.new()
 	damage_label.text = "-" + str(damage)
 	damage_label.add_theme_color_override("font_color", Color.YELLOW)
+	damage_label.add_theme_font_size_override("font_size", 20)
 	damage_label.position = Vector2(randf_range(-50, 50), -30)
 	add_child(damage_label)
 	
