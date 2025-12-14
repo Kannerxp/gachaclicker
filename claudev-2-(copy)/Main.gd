@@ -163,6 +163,10 @@ func _process(delta):
 	update_buff_debuff_timers(delta)
 	handle_auto_gold(delta)
 
+# Update Bank UI in real-time if visible
+	if bank_ui != null and bank_ui.visible:
+		bank_ui.update_display(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
+
 func handle_money_generation(delta):
 	# Apply prestige speed multiplier
 	var speed_multiplier = prestige_system.get_money_speed_multiplier()
@@ -170,9 +174,10 @@ func handle_money_generation(delta):
 	
 	money_timer += adjusted_delta
 	if money_timer >= money_generation_interval:
-		money_timer = 0.0
+		money_timer -= money_generation_interval  # Subtract instead of reset to preserve overflow
 		money += 1
-		update_ui()
+		# No need to call update_ui() here - it's called in _process when bank is visible
+		print("Generated 1 money! Total: ", money)
 
 func handle_boss_timer(delta):
 	if is_boss_level and current_enemy != null:
@@ -532,7 +537,7 @@ func update_ui():
 	if prestige_ui != null and prestige_ui.visible:
 		prestige_ui.update_ascend_button(current_level)
 	if bank_ui != null and bank_ui.visible:
-		bank_ui.setup(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
+		bank_ui.update_display(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
 
 func update_team_display():
 	# Get all character slots
@@ -1399,7 +1404,7 @@ func show_bank_ui():
 		bank_ui.back_pressed.connect(hide_all_uis)
 	
 	bank_ui.visible = true
-	bank_ui.setup(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
+	bank_ui.update_display(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
 
 # ========== SETTINGS UI FUNCTIONS ==========
 
