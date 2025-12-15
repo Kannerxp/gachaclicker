@@ -1,7 +1,0 @@
-[gd_scene format=3 uid="uid://bk4jhd1pcelgt"]
-
-[node name="Node2D" type="Node2D"]
-
-[node name="Label" type="Label" parent="."]
-offset_right = 40.0
-offset_bottom = 23.0
