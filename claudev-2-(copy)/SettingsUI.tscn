@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3 uid="uid://c7k9x4h2p8m5q"]
+[gd_scene load_steps=2 format=3 uid="uid://c7lax4h2p8m5q"]
 
-[ext_resource type="Script" path="res://SettingsUI.gd" id="1"]
+[ext_resource type="Script" uid="uid://bg0sviy7lie2h" path="res://SettingsUI.gd" id="1"]
 
 [node name="SettingsUI" type="Control"]
 layout_mode = 3
@@ -75,7 +75,7 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 14
-text = "Audio and graphics settings coming soon..."
+text = "Coming soon"
 horizontal_alignment = 1
 autowrap_mode = 2
 
@@ -94,7 +94,7 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
 theme_override_font_sizes/font_size = 14
-text = "⚠️ Reset All Progress"
+text = "Reset All Progress"
 
 [node name="Spacer4" type="Control" parent="Panel/VBox"]
 custom_minimum_size = Vector2(0, 20)
@@ -104,7 +104,7 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
 theme_override_font_sizes/font_size = 12
-text = "Version: 0.2.0"
+text = "Version: x"
 horizontal_alignment = 1
 
 [node name="BackButton" type="Button" parent="."]

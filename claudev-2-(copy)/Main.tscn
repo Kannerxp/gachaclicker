@@ -52,21 +52,33 @@ alignment = 1
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="GoldIcon" type="TextureRect" parent="UI/TopBar/TopBarContent/LeftSection"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
 [node name="GoldLabel" type="Label" parent="UI/TopBar/TopBarContent/LeftSection"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "(Gold png) Gold: 0"
+text = "Gold: 0"
 vertical_alignment = 1
 
 [node name="Spacer1" type="Control" parent="UI/TopBar/TopBarContent/LeftSection"]
 custom_minimum_size = Vector2(30, 0)
 layout_mode = 2
 
+[node name="GemsIcon" type="TextureRect" parent="UI/TopBar/TopBarContent/LeftSection"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
 [node name="GemsButton" type="Button" parent="UI/TopBar/TopBarContent/LeftSection"]
 custom_minimum_size = Vector2(150, 50)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "💎 Gems: 0 (+)"
+text = "Gems: 0 (+)"
 
 [node name="CenterSection" type="VBoxContainer" parent="UI/TopBar/TopBarContent"]
 layout_mode = 2

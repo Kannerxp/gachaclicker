@@ -2,14 +2,14 @@ class_name SpriteManager
 extends RefCounted
 
 # ========== SPRITE PATHS ==========
-# Change these paths to point to your actual sprite files
-# For now, they'll fall back to colored rectangles if sprites don't exist
-
 # UI Icons
 const ICON_GOLD = "res://icons/ui/gold.png"
 const ICON_GEMS = "res://icons/ui/gems.png"
 const ICON_PULLS = "res://icons/ui/pulls.png"
 const ICON_MONEY = "res://icons/ui/money.png"
+const ICON_ARROW_RIGHT = "res://icons/ui/arrow_right.png"
+const ICON_ARROW_UP = "res://icons/ui/arrow_up.png"
+const ICON_ARROW_DOWN = "res://icons/ui/arrow_down.png"
 
 # Enemy Sprites
 const ENEMY_NORMAL = "res://sprites/enemies/enemy_normal.png"
@@ -46,7 +46,7 @@ const WEAPON_SPRITES = {
 	109: "res://sprites/weapons/dragons_fury.png"
 }
 
-# Element icon paths (you already have these)
+# Element icon paths
 const ELEMENT_ICONS = {
 	"fire": "res://icons/elements/fire.png",
 	"ice": "res://icons/elements/ice.png",
@@ -62,7 +62,9 @@ const ELEMENT_ICONS = {
 static func load_texture(path: String) -> Texture2D:
 	if ResourceLoader.exists(path):
 		return load(path)
-	return null
+	else:
+		print("WARNING: Sprite not found at path: ", path)
+		return null
 
 static func get_icon_texture(icon_type: String) -> Texture2D:
 	match icon_type:
@@ -74,6 +76,12 @@ static func get_icon_texture(icon_type: String) -> Texture2D:
 			return load_texture(ICON_PULLS)
 		"money":
 			return load_texture(ICON_MONEY)
+		"arrow_right":
+			return load_texture(ICON_ARROW_RIGHT)
+		"arrow_up":
+			return load_texture(ICON_ARROW_UP)
+		"arrow_down":
+			return load_texture(ICON_ARROW_DOWN)
 	return null
 
 static func get_enemy_texture(is_boss: bool) -> Texture2D:
@@ -99,7 +107,7 @@ static func get_element_texture(element: Character.Element) -> Texture2D:
 
 # ========== SPRITE CREATION HELPERS ==========
 
-static func create_sprite_or_fallback(texture: Texture2D, fallback_color: Color, size: Vector2) -> Control:
+static func create_sprite_or_colored_rect(texture: Texture2D, fallback_color: Color, size: Vector2) -> Control:
 	if texture != null:
 		# Create TextureRect for actual sprite
 		var sprite = TextureRect.new()
@@ -109,7 +117,7 @@ static func create_sprite_or_fallback(texture: Texture2D, fallback_color: Color,
 		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		return sprite
 	else:
-		# Fallback to ColorRect
+		# Fallback to ColorRect (no emojis)
 		var rect = ColorRect.new()
 		rect.color = fallback_color
 		rect.custom_minimum_size = size
@@ -117,25 +125,32 @@ static func create_sprite_or_fallback(texture: Texture2D, fallback_color: Color,
 
 static func create_character_sprite(character_id: int, rarity_color: Color, size: Vector2 = Vector2(60, 60)) -> Control:
 	var texture = get_character_texture(character_id)
-	return create_sprite_or_fallback(texture, rarity_color, size)
+	return create_sprite_or_colored_rect(texture, rarity_color, size)
 
 static func create_weapon_sprite(weapon_id: int, rarity_color: Color, size: Vector2 = Vector2(40, 40)) -> Control:
 	var texture = get_weapon_texture(weapon_id)
-	return create_sprite_or_fallback(texture, rarity_color, size)
+	return create_sprite_or_colored_rect(texture, rarity_color, size)
 
 static func create_enemy_sprite(is_boss: bool, size: Vector2 = Vector2(150, 130)) -> Control:
 	var texture = get_enemy_texture(is_boss)
 	var fallback_color = Color.RED if is_boss else Color(0.8, 0.4, 0.4)
-	return create_sprite_or_fallback(texture, fallback_color, size)
+	return create_sprite_or_colored_rect(texture, fallback_color, size)
 
-static func create_icon_sprite(icon_type: String, size: Vector2 = Vector2(24, 24)) -> Control:
+static func create_icon_sprite(icon_type: String, size: Vector2 = Vector2(24, 24)) -> TextureRect:
 	var texture = get_icon_texture(icon_type)
+	var sprite = TextureRect.new()
+	sprite.custom_minimum_size = size
+	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	
 	if texture != null:
-		var sprite = TextureRect.new()
 		sprite.texture = texture
-		sprite.custom_minimum_size = size
-		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		return sprite
-	# If no icon, return empty control (text labels will handle it)
-	return Control.new()
+	else:
+		# Return empty TextureRect if no sprite found
+		sprite.modulate = Color(1, 1, 1, 0)  # Invisible
+	
+	return sprite
+
+static func create_arrow_sprite(direction: String, size: Vector2 = Vector2(16, 16)) -> TextureRect:
+	var icon_type = "arrow_" + direction
+	return create_icon_sprite(icon_type, size)

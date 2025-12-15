@@ -47,9 +47,10 @@ offset_right = 300.0
 offset_bottom = 170.0
 grow_horizontal = 2
 grow_vertical = 2
-current_tab = 0
+current_tab = 1
 
 [node name="CharactersTab" type="Control" parent="TabContainer"]
+visible = false
 layout_mode = 2
 metadata/_tab_name = "Characters"
 metadata/_tab_index = 0
@@ -67,7 +68,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="WeaponsTab" type="Control" parent="TabContainer"]
-visible = false
 layout_mode = 2
 metadata/_tab_name = "Weapons"
 metadata/_tab_index = 1

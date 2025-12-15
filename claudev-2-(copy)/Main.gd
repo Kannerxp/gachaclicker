@@ -77,7 +77,9 @@ var auto_gold_timer: float = 0.0
 
 # UI References
 @onready var level_label = $UI/TopBar/TopBarContent/CenterSection/LevelLabel
+@onready var gold_icon = $UI/TopBar/TopBarContent/LeftSection/GoldIcon
 @onready var gold_label = $UI/TopBar/TopBarContent/LeftSection/GoldLabel
+@onready var gems_icon = $UI/TopBar/TopBarContent/LeftSection/GemsIcon
 @onready var gems_button = $UI/TopBar/TopBarContent/LeftSection/GemsButton
 @onready var prestige_button = $UI/TopBar/TopBarContent/RightSection/PrestigeButton
 @onready var settings_button = $UI/TopBar/TopBarContent/RightSection/SettingsButton
@@ -105,6 +107,10 @@ const MAX_TEAM_SIZE = 5
 func _ready():
 	gacha_system = GachaSystem.new()
 	prestige_system = PrestigeSystem.new()
+	
+	# Load UI icon sprites
+	gold_icon.texture = SpriteManager.get_icon_texture("gold")
+	gems_icon.texture = SpriteManager.get_icon_texture("gems")
 	
 	# Try to load saved game first
 	if load_game():
@@ -146,8 +152,8 @@ func initialize_player_character():
 	player_character.base_damage = 10
 	player_character.level = 1
 	player_character.is_unlocked = true
-	player_character.is_player_character = true  # Mark as player character
-	player_character.character_id = 0  # Special ID for player
+	player_character.is_player_character = true
+	player_character.character_id = 0
 	player_character.role = Character.Role.DPS
 	player_character.element = Character.Element.NEUTRAL
 	player_character.formation_position = Character.Formation.FRONT
@@ -162,21 +168,19 @@ func _process(delta):
 	update_ability_cooldowns(delta)
 	update_buff_debuff_timers(delta)
 	handle_auto_gold(delta)
-
-# Update Bank UI in real-time if visible
+	
+	# Update Bank UI in real-time if visible
 	if bank_ui != null and bank_ui.visible:
 		bank_ui.update_display(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
 
 func handle_money_generation(delta):
-	# Apply prestige speed multiplier
 	var speed_multiplier = prestige_system.get_money_speed_multiplier()
 	var adjusted_delta = delta * speed_multiplier
 	
 	money_timer += adjusted_delta
 	if money_timer >= money_generation_interval:
-		money_timer -= money_generation_interval  # Subtract instead of reset to preserve overflow
+		money_timer -= money_generation_interval
 		money += 1
-		# No need to call update_ui() here - it's called in _process when bank is visible
 		print("Generated 1 money! Total: ", money)
 
 func handle_boss_timer(delta):
@@ -185,7 +189,6 @@ func handle_boss_timer(delta):
 		boss_timer_label.text = "Boss Timer: " + str(ceil(boss_timer))
 		
 		if boss_timer <= 0.0:
-			# Boss timer expired, send player back 3 levels
 			current_level = max(1, current_level - 3)
 			print("Boss timer expired! Sent back to level: ", current_level)
 			boss_timer_label.visible = false
@@ -200,11 +203,7 @@ func handle_auto_attack(delta):
 	auto_attack_timer += delta
 	if auto_attack_timer >= auto_attack_interval:
 		auto_attack_timer = 0.0
-		
-		# Calculate total damage from active team (excluding player for auto-attack)
 		var total_auto_damage = calculate_team_damage(false)
-		
-		# Apply damage to enemy
 		if total_auto_damage > 0:
 			current_enemy.take_damage(total_auto_damage)
 
@@ -218,25 +217,21 @@ func handle_auto_gold(delta):
 			gold += gold_gain
 
 func update_ability_cooldowns(delta):
-	# Apply prestige cooldown reduction
 	var cooldown_reduction = prestige_system.get_cooldown_reduction()
 	var adjusted_delta = delta * (1.0 + cooldown_reduction)
 	
 	for character in active_team:
 		character.update_ability_cooldown(adjusted_delta)
 	
-	# Update ability button displays
 	update_ability_buttons()
 
 func update_buff_debuff_timers(delta):
-	# Support buff timer
 	if support_buff_active:
 		support_buff_timer -= delta
 		if support_buff_timer <= 0:
 			support_buff_active = false
 			remove_support_indicator()
 	
-	# Tank debuff timer
 	if tank_debuff_active:
 		tank_debuff_timer -= delta
 		if tank_debuff_timer <= 0:
@@ -244,15 +239,13 @@ func update_buff_debuff_timers(delta):
 			remove_tank_indicator()
 
 func use_ability(slot_index: int):
-	# Map slot index to character
 	var character: Character = null
 	
-	if slot_index == 2:  # Player slot (middle)
+	if slot_index == 2:
 		character = player_character
 	else:
-		# Get non-player team members
 		var other_members = active_team.filter(func(c): return not c.is_player_character)
-		var member_indices = [0, 1, 3, 4]  # Slot positions
+		var member_indices = [0, 1, 3, 4]
 		var list_index = member_indices.find(slot_index)
 		
 		if list_index >= 0 and list_index < other_members.size():
@@ -261,7 +254,6 @@ func use_ability(slot_index: int):
 	if character == null or not character.is_ability_ready():
 		return
 	
-	# Use ability based on role
 	match character.role:
 		Character.Role.DPS:
 			use_dps_ability(character)
@@ -270,7 +262,6 @@ func use_ability(slot_index: int):
 		Character.Role.TANK:
 			use_tank_ability(character)
 	
-	# Start cooldown
 	character.start_ability_cooldown()
 	update_ability_buttons()
 
@@ -280,8 +271,6 @@ func use_dps_ability(character: Character):
 	
 	var damage = character.get_ability_damage()
 	current_enemy.take_damage(damage)
-	
-	# Show large damage number
 	show_big_damage_number(damage)
 	print(character.name, " used DPS ability for ", damage, " damage!")
 
@@ -318,10 +307,10 @@ func show_support_indicator():
 		support_indicator.queue_free()
 	
 	support_indicator = Label.new()
-	support_indicator.text = "⬆"
-	support_indicator.add_theme_font_size_override("font_size", 40)
+	support_indicator.text = "BUFF"
+	support_indicator.add_theme_font_size_override("font_size", 24)
 	support_indicator.add_theme_color_override("font_color", Color.GREEN)
-	support_indicator.position = Vector2(270, -30)
+	support_indicator.position = Vector2(250, -10)
 	team_container.add_child(support_indicator)
 
 func remove_support_indicator():
@@ -337,10 +326,10 @@ func show_tank_indicator():
 		return
 	
 	tank_indicator = Label.new()
-	tank_indicator.text = "⬇"
-	tank_indicator.add_theme_font_size_override("font_size", 40)
+	tank_indicator.text = "WEAK"
+	tank_indicator.add_theme_font_size_override("font_size", 24)
 	tank_indicator.add_theme_color_override("font_color", Color.RED)
-	tank_indicator.position = Vector2(60, -40)
+	tank_indicator.position = Vector2(50, -40)
 	current_enemy.add_child(tank_indicator)
 
 func remove_tank_indicator():
@@ -349,7 +338,6 @@ func remove_tank_indicator():
 		tank_indicator = null
 
 func update_ability_buttons():
-	# Simply iterate through all buttons and update based on stored character
 	for button in ability_buttons:
 		if not button.has_meta("character"):
 			continue
@@ -360,7 +348,6 @@ func update_ability_buttons():
 		
 		button.disabled = not character.is_ability_ready()
 		
-		# Find and update cooldown label
 		var display = button.get_parent()
 		if display.has_node("CooldownLabel"):
 			var cooldown_label = display.get_node("CooldownLabel")
@@ -377,33 +364,26 @@ func calculate_team_damage(include_player: bool = true) -> int:
 	var total_damage = 0
 	
 	for character in active_team:
-		# Skip player if requested (for auto-attack calculation)
 		if not include_player and character.is_player_character:
 			continue
 		
-		# Base damage with role and formation multipliers
 		var char_damage = character.get_total_damage()
 		char_damage = int(char_damage * character.get_role_multiplier())
 		char_damage = int(char_damage * character.get_formation_multiplier())
 		
 		total_damage += char_damage
 	
-	# Apply team synergies
 	var synergy_multiplier = get_team_synergy_multiplier()
 	total_damage = int(total_damage * synergy_multiplier)
 	
-	# Apply support buff if active
 	if support_buff_active:
 		total_damage = int(total_damage * support_buff_multiplier)
 	
-	# Apply tank debuff if active (enemies take more damage)
 	if tank_debuff_active:
 		total_damage = int(total_damage * tank_debuff_multiplier)
 	
-	# Apply prestige damage multiplier
 	total_damage = int(total_damage * prestige_system.get_damage_multiplier())
 	
-	# Apply critical hit chance
 	var crit_chance = prestige_system.get_crit_chance()
 	if crit_chance > 0 and randf() <= crit_chance:
 		total_damage = total_damage * 2
@@ -414,33 +394,28 @@ func calculate_team_damage(include_player: bool = true) -> int:
 func get_team_synergy_multiplier() -> float:
 	var multiplier = 1.0
 	
-	# Count elements
 	var element_counts = {}
 	for character in active_team:
 		var element = character.element
 		if element != Character.Element.NEUTRAL:
 			element_counts[element] = element_counts.get(element, 0) + 1
 	
-	# Element resonance bonus (10% per matching element, minimum 2)
 	for element in element_counts:
 		var count = element_counts[element]
 		if count >= 2:
 			multiplier += 0.1 * count
 	
-	# Opposite element synergies
 	if element_counts.has(Character.Element.FIRE) and element_counts.has(Character.Element.ICE):
 		multiplier += 0.25
 	
 	if element_counts.has(Character.Element.LIGHT) and element_counts.has(Character.Element.DARK):
 		multiplier += 0.25
 	
-	# Role synergies
 	var role_counts = {}
 	for character in active_team:
 		var role = character.role
 		role_counts[role] = role_counts.get(role, 0) + 1
 	
-	# Balanced team bonus (all 3 roles present)
 	if role_counts.size() == 3:
 		multiplier += 0.15
 	
@@ -475,21 +450,16 @@ func remove_from_team(character: Character):
 # ========== SPAWN/COMBAT ==========
 
 func spawn_enemy():
-	# Remove current enemy if it exists
 	if current_enemy != null:
 		current_enemy.queue_free()
 	
-	# Check if this is a boss level (every 10 levels)
 	is_boss_level = (current_level % 10 == 0)
 	
-	# Create new enemy
 	current_enemy = enemy_scene.instantiate()
 	enemy_container.add_child(current_enemy)
 	
-	# Configure enemy based on level and boss status
 	if is_boss_level:
 		current_enemy.setup_as_boss(current_level)
-		# Apply boss timer extension from prestige
 		boss_timer = boss_time_limit + prestige_system.get_boss_timer_extension()
 		boss_timer_label.visible = true
 		boss_timer_label.text = "Boss Timer: " + str(int(boss_timer))
@@ -497,18 +467,15 @@ func spawn_enemy():
 		current_enemy.setup_as_normal(current_level)
 		boss_timer_label.visible = false
 	
-	# Connect enemy defeat signal
 	current_enemy.enemy_defeated.connect(_on_enemy_defeated)
 
 func _on_enemy_defeated(gold_reward: int):
-	# Apply prestige gold multiplier
 	var multiplied_gold = int(gold_reward * prestige_system.get_gold_multiplier())
 	gold += multiplied_gold
 	current_level += 1
 	
 	print("Enemy defeated! Gold: +", multiplied_gold, " Level: ", current_level)
 	
-	# Reset boss status
 	if is_boss_level:
 		is_boss_level = false
 		boss_timer_label.visible = false
@@ -517,34 +484,18 @@ func _on_enemy_defeated(gold_reward: int):
 	update_ui()
 	save_game()
 
-func update_label_with_icon(label: Label, icon_type: String, text: String):
-	# Try to load icon texture
-	var icon_texture = SpriteManager.get_icon_texture(icon_type)
-
-	if icon_texture != null:
-		# If we have an icon, just show the text (icon will be separate)
-		label.text = text
-
 func update_ui():
 	level_label.text = "Level: " + str(current_level)
 	
-	# Update with icons or emojis
-	update_label_with_icon(gold_label, "gold", "Gold: " + str(gold))
+	# Icons are separate TextureRects, just update text
+	gold_label.text = "Gold: " + str(gold)
+	gems_button.text = "Gems: " + str(gems) + " (+)"
 	
-	# Gems button text
-	var gems_emoji = ""
-	if SpriteManager.get_icon_texture("gems") == null:
-		gems_emoji = "💎 "
-	gems_button.text = gems_emoji + "Gems: " + str(gems) + " (+)"
-	
-# Update prestige button
 	var pp_to_gain = prestige_system.calculate_prestige_points_from_level(current_level)
 	prestige_button.text = "Prestige\n(+" + str(pp_to_gain) + "pp)"
 	
-	# Update player damage based on team damage
 	player_damage = calculate_team_damage(true)
 	
-	# Update UI button states if UIs are open
 	if shop_ui != null and shop_ui.visible:
 		shop_ui.update_button_states(money, gems)
 	if gacha_ui != null and gacha_ui.visible:
@@ -555,7 +506,6 @@ func update_ui():
 		bank_ui.update_display(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
 
 func update_team_display():
-	# Get all character slots
 	var slots = [
 		team_container.get_node("CharSlot1"),
 		team_container.get_node("CharSlot2"),
@@ -564,34 +514,25 @@ func update_team_display():
 		team_container.get_node("CharSlot4")
 	]
 	
-	# Clear all slots first
 	for slot in slots:
 		for child in slot.get_children():
 			child.queue_free()
 	
-	# Clear ability buttons array
 	ability_buttons.clear()
 	
-	# Get other team members (excluding player)
 	var other_team_members = active_team.filter(func(c): return not c.is_player_character)
+	var slot_to_member_index = [0, 1, -1, 2, 3]
 	
-	# Map for slot positions: slot 0, 1 are left side, slot 3, 4 are right side
-	var slot_to_member_index = [0, 1, -1, 2, 3]  # -1 means player slot
-	
-	# Create displays in slot order (0 through 4)
 	for slot_index in range(5):
 		var character: Character = null
 		
 		if slot_index == 2:
-			# Player slot
 			character = player_character
 		else:
-			# Other member slot
 			var member_index = slot_to_member_index[slot_index]
 			if member_index >= 0 and member_index < other_team_members.size():
 				character = other_team_members[member_index]
 		
-		# Create and add display if we have a character for this slot
 		if character != null:
 			var char_display = create_character_display(character, slot_index)
 			slots[slot_index].add_child(char_display)
@@ -600,7 +541,6 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 	var display = Control.new()
 	display.custom_minimum_size = Vector2(80, 120)
 	
-	# Character sprite (using SpriteManager)
 	var sprite = SpriteManager.create_character_sprite(
 		character.character_id,
 		character.get_rarity_color(),
@@ -609,7 +549,6 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 	sprite.position = Vector2(10, 5)
 	display.add_child(sprite)
 	
-	# Element icon overlay (smaller, in corner)
 	var element_texture = character.get_element_icon_texture()
 	if element_texture != null:
 		var element_icon = TextureRect.new()
@@ -620,18 +559,14 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 		element_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		display.add_child(element_icon)
 	
-	# Ability button
 	var ability_button = Button.new()
 	ability_button.text = character.get_ability_name()
 	ability_button.custom_minimum_size = Vector2(70, 25)
 	ability_button.position = Vector2(5, -30)
 	ability_button.add_theme_font_size_override("font_size", 10)
 	ability_button.pressed.connect(use_ability.bind(slot_index))
-	
-	# STORE CHARACTER REFERENCE IN BUTTON METADATA
 	ability_button.set_meta("character", character)
 	
-	# Color button based on role
 	match character.role:
 		Character.Role.DPS:
 			ability_button.modulate = Color(1.0, 0.3, 0.3)
@@ -643,7 +578,6 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 	display.add_child(ability_button)
 	ability_buttons.append(ability_button)
 	
-	# Cooldown timer label
 	var cooldown_label = Label.new()
 	cooldown_label.name = "CooldownLabel"
 	cooldown_label.position = Vector2(10, 65)
@@ -660,7 +594,6 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 	
 	display.add_child(cooldown_label)
 	
-	# Character name
 	var name_label = Label.new()
 	name_label.text = character.name
 	name_label.position = Vector2(0, 78)
@@ -670,7 +603,6 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 	name_label.modulate = character.get_rarity_color()
 	display.add_child(name_label)
 	
-	# Level label
 	var level_label = Label.new()
 	level_label.text = "Lv." + str(character.level)
 	level_label.position = Vector2(0, 92)
@@ -1134,7 +1066,7 @@ func show_pull_result(results: Array[Character]):
 		# Character info
 		var info_label = Label.new()
 		var rarity_text = Character.Rarity.keys()[result.rarity]
-		var type_text = result.get_element_icon() if result.character_type == Character.Type.CHARACTER else "⚔"
+		var type_text = result.get_element_icon()
 		info_label.text = type_text + " " + result.name + " (" + rarity_text + ")"
 		info_label.modulate = result.get_rarity_color()
 		result_container.add_child(info_label)
@@ -1207,8 +1139,7 @@ func show_character_popup(character: Character):
 	var type_indicator = Label.new()
 	if character.character_type == Character.Type.CHARACTER:
 		type_indicator.text = character.get_element_icon()
-	else:
-		type_indicator.text = "⚔"
+	#else:
 	type_indicator.add_theme_font_size_override("font_size", 24)
 	type_indicator.modulate = character.get_rarity_color()
 	header_container.add_child(type_indicator)
@@ -1240,12 +1171,12 @@ func show_character_popup(character: Character):
 		var base_dmg = character.get_total_damage()
 		var formation_mult = character.get_formation_multiplier()
 		var modified_dmg = int(base_dmg * formation_mult)
-		info_label.text += "Base Damage: " + str(base_dmg) + " → " + str(modified_dmg) + "\n"
+		info_label.text += "Base Damage: " + str(base_dmg) + " > " + str(modified_dmg) + "\n"
 		
 		var base_cooldown = character.ability_cooldown_max
 		var cooldown_mult = character.get_formation_cooldown_multiplier()
 		var modified_cooldown = base_cooldown * cooldown_mult
-		info_label.text += "Ability Cooldown: " + str(base_cooldown) + "s → " + str(modified_cooldown) + "s\n"
+		info_label.text += "Ability Cooldown: " + str(base_cooldown) + "s > " + str(modified_cooldown) + "s\n"
 		
 		info_label.text += "\nIn Team: " + ("Yes" if character.is_in_team else "No") + "\n"
 	else:
@@ -1277,7 +1208,6 @@ func show_character_popup(character: Character):
 		# Current weapon display
 		var current_weapon_label = Label.new()
 		if character.equipped_weapon != null:
-			current_weapon_label.text = "⚔ " + character.equipped_weapon.name + " (+" + str(character.equipped_weapon.get_weapon_damage()) + " DMG)"
 			current_weapon_label.modulate = character.equipped_weapon.get_rarity_color()
 		else:
 			current_weapon_label.text = "None"
@@ -1308,7 +1238,7 @@ func show_character_popup(character: Character):
 			for weapon in available_weapons:
 				var weapon_button = Button.new()
 				var weapon_dmg = weapon.get_weapon_damage()
-				weapon_button.text = "⚔ " + weapon.name + " (+" + str(weapon_dmg) + " DMG)"
+				weapon_button.text = weapon.name + " (+" + str(weapon_dmg) + " DMG)"
 				
 				# Show if weapon is equipped elsewhere
 				var equipped_to = ""

@@ -24,7 +24,7 @@ func refresh_characters(characters: Array[Character]):
 	for child in weapon_container.get_children():
 		child.queue_free()
 	
-	await get_tree().process_frame  # Wait for cleanup
+	await get_tree().process_frame
 	
 	# Separate characters and weapons
 	var chars: Array[Character] = []
@@ -49,9 +49,8 @@ func refresh_characters(characters: Array[Character]):
 func create_character_button(character: Character) -> Button:
 	var button = Button.new()
 	
-	# Enhanced button text with more info
+	# Enhanced button text WITHOUT emojis
 	var button_text = character.name + " (Lv." + str(character.level) + ")"
-	#var button_text = character.get_element_icon() + " " + character.name + " (Lv." + str(character.level) + ")"
 	
 	if character.is_in_team:
 		button_text = "[IN TEAM] " + button_text
@@ -65,7 +64,7 @@ func create_character_button(character: Character) -> Button:
 	button.text = button_text
 	button.custom_minimum_size = Vector2(350, 60)
 	
-	# Color based on rarity using the new color system
+	# Color based on rarity
 	button.modulate = character.get_rarity_color()
 	
 	# Make higher rarity characters more prominent
@@ -83,8 +82,8 @@ func create_character_button(character: Character) -> Button:
 func create_weapon_button(weapon: Character) -> Button:
 	var button = Button.new()
 	
-	# Weapon button text
-	var button_text = "⚔ " + weapon.name + " (Lv." + str(weapon.level) + ")"
+	# Weapon button text WITHOUT emojis
+	var button_text = "[WEAPON] " + weapon.name + " (Lv." + str(weapon.level) + ")"
 	button_text += " [+" + str(weapon.get_weapon_damage()) + " DMG]"
 	
 	if weapon.duplicate_count > 0:
