@@ -496,12 +496,24 @@ func update_ui():
 	
 	player_damage = calculate_team_damage(true)
 	
+	# Update UI states if visible
 	if shop_ui != null and shop_ui.visible:
-		shop_ui.update_button_states(money, gems)
+		shop_ui.update_currency_display(money, gems, pull_currency)
+	
 	if gacha_ui != null and gacha_ui.visible:
+		gacha_ui.update_currency_display(gems, pull_currency)
 		gacha_ui.update_button_states(pull_currency)
+		var pity_info = gacha_system.get_pity_info()
+		gacha_ui.update_pity_display(
+			pity_info.character_pity,
+			pity_info.character_pity_limit,
+			pity_info.weapon_pity,
+			pity_info.weapon_pity_limit
+		)
+	
 	if prestige_ui != null and prestige_ui.visible:
 		prestige_ui.update_ascend_button(current_level)
+	
 	if bank_ui != null and bank_ui.visible:
 		bank_ui.update_display(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
 
@@ -630,7 +642,8 @@ func save_game():
 		"characters": serialize_characters(),
 		"gacha_pity": gacha_system.get_pity_info(),
 		"active_team_ids": serialize_team(),
-		"prestige": prestige_system.get_save_data()
+		"prestige": prestige_system.get_save_data(),
+		"shop": shop_ui.get_save_data() if shop_ui != null else {}
 	}
 	
 	var json_string = JSON.stringify(save_data)
@@ -680,6 +693,11 @@ func load_game() -> bool:
 	# Load prestige data
 	var prestige_data = save_data.get("prestige", {})
 	prestige_system.load_save_data(prestige_data)
+	
+	# Load shop data
+	var shop_data = save_data.get("shop", {})
+	if shop_ui != null:
+		shop_ui.load_save_data(shop_data)
 	
 	return true
 
@@ -839,13 +857,104 @@ func show_shop_ui():
 		shop_ui = shop_scene.instantiate()
 		add_child(shop_ui)
 		
-		# Connect signals
-		shop_ui.buy_gems_requested.connect(_on_buy_gems_pressed)
-		shop_ui.buy_pulls_requested.connect(_on_buy_pulls_pressed)
+		# Connect new shop signals
+		shop_ui.purchase_requested.connect(_on_shop_purchase_requested)
 		shop_ui.back_pressed.connect(hide_all_uis)
 	
 	shop_ui.visible = true
-	shop_ui.update_button_states(money, gems)
+	shop_ui.update_currency_display(money, gems, pull_currency)
+
+func _on_shop_purchase_requested(item_id: String, category: String):
+	print("Purchase requested: ", item_id, " from category: ", category)
+	
+	# Handle different purchase types
+	match category:
+		"GEMS":
+			handle_gems_purchase(item_id)
+		"PULLS":
+			handle_pulls_purchase(item_id)
+		_:
+			show_shop_message("This category is not yet available!")
+
+func handle_gems_purchase(item_id: String):
+	# Map item IDs to gem amounts and costs
+	var gem_amounts = {
+		"gems_1": {"gems": 1, "cost": 10},
+		"gems_5": {"gems": 5, "cost": 50},
+		"gems_10": {"gems": 10, "cost": 100},
+		"gems_small": {"gems": 1, "cost": 10},
+		"gems_medium": {"gems": 5, "cost": 50},
+		"gems_large": {"gems": 20, "cost": 200},
+		"gems_xlarge": {"gems": 50, "cost": 500},
+		"gems_mega": {"gems": 100, "cost": 1000}
+	}
+	
+	if not gem_amounts.has(item_id):
+		show_shop_message("Invalid item!")
+		return
+	
+	var item = gem_amounts[item_id]
+	
+	# Check if player has enough money
+	if money < item.cost:
+		show_shop_message("Not enough money!\nNeed: " + str(item.cost) + " money\nHave: " + str(money) + " money")
+		return
+	
+	# Process purchase
+	money -= item.cost
+	gems += item.gems
+	
+	update_ui()
+	if shop_ui != null:
+		shop_ui.update_currency_display(money, gems, pull_currency)
+	
+	save_game()
+	
+	show_shop_message("Purchased " + str(item.gems) + " gems!")
+	print("Purchased gems: ", item.gems, " for ", item.cost, " money")
+
+func handle_pulls_purchase(item_id: String):
+	# Map item IDs to pull amounts and costs
+	var pull_amounts = {
+		"pulls_1": {"pulls": 1, "cost": 5},
+		"pulls_5": {"pulls": 5, "cost": 25},
+		"pulls_10": {"pulls": 10, "cost": 50},
+		"pulls_small": {"pulls": 1, "cost": 5},
+		"pulls_medium": {"pulls": 5, "cost": 25},
+		"pulls_large": {"pulls": 20, "cost": 100}
+	}
+	
+	if not pull_amounts.has(item_id):
+		show_shop_message("Invalid item!")
+		return
+	
+	var item = pull_amounts[item_id]
+	
+	# Check if player has enough gems
+	if gems < item.cost:
+		show_shop_message("Not enough gems!\nNeed: " + str(item.cost) + " gems\nHave: " + str(gems) + " gems")
+		return
+	
+	# Process purchase
+	gems -= item.cost
+	pull_currency += item.pulls
+	
+	update_ui()
+	if shop_ui != null:
+		shop_ui.update_currency_display(money, gems, pull_currency)
+	
+	save_game()
+	
+	show_shop_message("Purchased " + str(item.pulls) + " pulls!")
+	print("Purchased pulls: ", item.pulls, " for ", item.cost, " gems")
+
+func show_shop_message(text: String):
+	var dialog = AcceptDialog.new()
+	dialog.dialog_text = text
+	dialog.title = "Shop"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
 
 func show_gacha_ui():
 	hide_all_uis()
@@ -854,7 +963,7 @@ func show_gacha_ui():
 		gacha_ui = gacha_scene.instantiate()
 		add_child(gacha_ui)
 		
-		# Connect signals
+		# Connect new gacha signals
 		gacha_ui.character_pull_requested.connect(_on_character_pull_pressed)
 		gacha_ui.character_pull_10_requested.connect(_on_character_pull_10_pressed)
 		gacha_ui.weapon_pull_requested.connect(_on_weapon_pull_pressed)
@@ -862,6 +971,7 @@ func show_gacha_ui():
 		gacha_ui.back_pressed.connect(hide_all_uis)
 	
 	gacha_ui.visible = true
+	gacha_ui.update_currency_display(gems, pull_currency)
 	gacha_ui.update_button_states(pull_currency)
 	
 	# Update pity display
@@ -958,6 +1068,18 @@ func _on_character_pull_pressed():
 		update_ui()
 		show_pull_result([result])
 		save_game()
+		
+		# Update gacha UI
+		if gacha_ui != null and gacha_ui.visible:
+			gacha_ui.update_currency_display(gems, pull_currency)
+			gacha_ui.update_button_states(pull_currency)
+			var pity_info = gacha_system.get_pity_info()
+			gacha_ui.update_pity_display(
+				pity_info.character_pity,
+				pity_info.character_pity_limit,
+				pity_info.weapon_pity,
+				pity_info.weapon_pity_limit
+			)
 
 func _on_character_pull_10_pressed():
 	if pull_currency >= 10:
@@ -968,6 +1090,18 @@ func _on_character_pull_10_pressed():
 		update_ui()
 		show_pull_result(results)
 		save_game()
+		
+		# Update gacha UI
+		if gacha_ui != null and gacha_ui.visible:
+			gacha_ui.update_currency_display(gems, pull_currency)
+			gacha_ui.update_button_states(pull_currency)
+			var pity_info = gacha_system.get_pity_info()
+			gacha_ui.update_pity_display(
+				pity_info.character_pity,
+				pity_info.character_pity_limit,
+				pity_info.weapon_pity,
+				pity_info.weapon_pity_limit
+			)
 
 func _on_weapon_pull_pressed():
 	if pull_currency >= 1:
@@ -977,6 +1111,18 @@ func _on_weapon_pull_pressed():
 		update_ui()
 		show_pull_result([result])
 		save_game()
+		
+		# Update gacha UI
+		if gacha_ui != null and gacha_ui.visible:
+			gacha_ui.update_currency_display(gems, pull_currency)
+			gacha_ui.update_button_states(pull_currency)
+			var pity_info = gacha_system.get_pity_info()
+			gacha_ui.update_pity_display(
+				pity_info.character_pity,
+				pity_info.character_pity_limit,
+				pity_info.weapon_pity,
+				pity_info.weapon_pity_limit
+			)
 
 func _on_weapon_pull_10_pressed():
 	if pull_currency >= 10:
@@ -987,6 +1133,18 @@ func _on_weapon_pull_10_pressed():
 		update_ui()
 		show_pull_result(results)
 		save_game()
+		
+		# Update gacha UI
+		if gacha_ui != null and gacha_ui.visible:
+			gacha_ui.update_currency_display(gems, pull_currency)
+			gacha_ui.update_button_states(pull_currency)
+			var pity_info = gacha_system.get_pity_info()
+			gacha_ui.update_pity_display(
+				pity_info.character_pity,
+				pity_info.character_pity_limit,
+				pity_info.weapon_pity,
+				pity_info.weapon_pity_limit
+			)
 
 func process_character_result(new_character: Character):
 	# Check for duplicates

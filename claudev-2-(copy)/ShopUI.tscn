@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cohi0rdabl8ux"]
 
-[ext_resource type="Script" uid="uid://buvtuuk1s123n" path="res://ShopUI.gd" id="1_2ga4l"]
+[ext_resource type="Script" uid="uid://buvtuuk1s123n" path="res://ShopUI.gd" id="1"]
 
 [node name="ShopUI" type="Control"]
 layout_mode = 3
@@ -9,7 +9,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_2ga4l")
+script = ExtResource("1")
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
@@ -18,113 +18,155 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.3, 0.3, 0.4, 0.9)
+color = Color(0.9, 0.9, 0.9, 1)
 
-[node name="Title" type="Label" parent="."]
+[node name="TopBar" type="Panel" parent="."]
 layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -50.0
-offset_top = 20.0
-offset_right = 50.0
-offset_bottom = 50.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 60.0
 grow_horizontal = 2
-theme_override_font_sizes/font_size = 24
-text = "SHOP"
-horizontal_alignment = 1
 
-[node name="TabContainer" type="TabContainer" parent="."]
+[node name="CurrencyContainer" type="HBoxContainer" parent="TopBar"]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
+anchors_preset = 6
+anchor_left = 1.0
 anchor_top = 0.5
-anchor_right = 0.5
+anchor_right = 1.0
 anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = -150.0
-offset_right = 200.0
-offset_bottom = 150.0
-grow_horizontal = 2
+offset_left = -500.0
+offset_top = -20.0
+offset_right = -20.0
+offset_bottom = 20.0
+grow_horizontal = 0
 grow_vertical = 2
-current_tab = 0
+alignment = 2
 
-[node name="GemsTab" type="Control" parent="TabContainer"]
+[node name="GoldIcon" type="TextureRect" parent="TopBar/CurrencyContainer"]
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
-metadata/_tab_name = "Buy Gems"
-metadata/_tab_index = 0
+expand_mode = 1
+stretch_mode = 5
 
-[node name="InfoLabel" type="Label" parent="TabContainer/GemsTab"]
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -100.0
-offset_top = 50.0
-offset_right = 100.0
-offset_bottom = 80.0
-grow_horizontal = 2
-text = "10 Money = 1 Gem"
-horizontal_alignment = 1
-
-[node name="BuyButton" type="Button" parent="TabContainer/GemsTab"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -75.0
-offset_top = -15.0
-offset_right = 75.0
-offset_bottom = 15.0
-grow_horizontal = 2
-grow_vertical = 2
-text = "Buy 1 Gem"
-
-[node name="PullsTab" type="Control" parent="TabContainer"]
-visible = false
+[node name="GoldLabel" type="Label" parent="TopBar/CurrencyContainer"]
 layout_mode = 2
-metadata/_tab_name = "Buy Pulls"
-metadata/_tab_index = 1
+theme_override_font_sizes/font_size = 18
+text = "Gold: X"
+vertical_alignment = 1
 
-[node name="InfoLabel" type="Label" parent="TabContainer/PullsTab"]
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -100.0
-offset_top = 50.0
-offset_right = 100.0
-offset_bottom = 80.0
-grow_horizontal = 2
-text = "5 Gems = 1 Pull"
-horizontal_alignment = 1
+[node name="Spacer1" type="Control" parent="TopBar/CurrencyContainer"]
+custom_minimum_size = Vector2(20, 0)
+layout_mode = 2
 
-[node name="BuyButton" type="Button" parent="TabContainer/PullsTab"]
+[node name="GemsIcon" type="TextureRect" parent="TopBar/CurrencyContainer"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="GemsLabel" type="Label" parent="TopBar/CurrencyContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Gems: X"
+vertical_alignment = 1
+
+[node name="Spacer2" type="Control" parent="TopBar/CurrencyContainer"]
+custom_minimum_size = Vector2(20, 0)
+layout_mode = 2
+
+[node name="PullsIcon" type="TextureRect" parent="TopBar/CurrencyContainer"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PullsLabel" type="Label" parent="TopBar/CurrencyContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Pulls: X"
+vertical_alignment = 1
+
+[node name="MainContent" type="HBoxContainer" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -75.0
-offset_top = -15.0
-offset_right = 75.0
-offset_bottom = 15.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 60.0
 grow_horizontal = 2
 grow_vertical = 2
-text = "Buy 1 Pull"
+
+[node name="Sidebar" type="Panel" parent="MainContent"]
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+
+[node name="SidebarContent" type="VBoxContainer" parent="MainContent/Sidebar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ShopTitle" type="Label" parent="MainContent/Sidebar/SidebarContent"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "Shop"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="MainContent/Sidebar/SidebarContent"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="CategoryButtons" type="VBoxContainer" parent="MainContent/Sidebar/SidebarContent"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContentArea" type="VBoxContainer" parent="MainContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SearchBar" type="Panel" parent="MainContent/ContentArea"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+
+[node name="SearchInput" type="LineEdit" parent="MainContent/ContentArea/SearchBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+placeholder_text = "Search..."
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MainContent/ContentArea"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ItemGrid" type="GridContainer" parent="MainContent/ContentArea/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 20
+columns = 4
 
 [node name="BackButton" type="Button" parent="."]
 layout_mode = 1
-anchors_preset = 3
-anchor_left = 1.0
+anchors_preset = 2
 anchor_top = 1.0
-anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -100.0
-offset_top = -50.0
-grow_horizontal = 0
+offset_left = 20.0
+offset_top = -60.0
+offset_right = 120.0
+offset_bottom = -20.0
 grow_vertical = 0
+theme_override_font_sizes/font_size = 16
 text = "Back"
