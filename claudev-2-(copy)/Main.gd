@@ -12,7 +12,7 @@ const SAVE_FILE_PATH = "user://savegame.save"
 var gold: int = 0
 var gems: int = 20
 var pull_currency: int = 20
-var money: int = 20
+var money: float = 20.0
 
 # Game progression
 var current_level: int = 1
@@ -180,8 +180,11 @@ func handle_money_generation(delta):
 	money_timer += adjusted_delta
 	if money_timer >= money_generation_interval:
 		money_timer -= money_generation_interval
-		money += 1
-		print("Generated 1 money! Total: ", money)
+		money += 1.0
+		print("Generated $1.00! Total: $%.2f" % money)
+
+func format_money(amount: float) -> String:
+	return "$%.2f" % amount
 
 func handle_boss_timer(delta):
 	if is_boss_level and current_enemy != null:
@@ -498,7 +501,7 @@ func update_ui():
 	
 	# Update UI states if visible
 	if shop_ui != null and shop_ui.visible:
-		shop_ui.update_currency_display(money, gems, pull_currency)
+		shop_ui.update_currency_display(gold, gems, pull_currency)
 	
 	if gacha_ui != null and gacha_ui.visible:
 		gacha_ui.update_currency_display(gems, pull_currency)
@@ -676,7 +679,7 @@ func load_game() -> bool:
 	gold = save_data.get("gold", 0)
 	gems = save_data.get("gems", 20)
 	pull_currency = save_data.get("pull_currency", 20)
-	money = save_data.get("money", 20)
+	money = save_data.get("money", 20.0)
 	current_level = save_data.get("current_level", 1)
 	
 	# Load characters
@@ -862,7 +865,7 @@ func show_shop_ui():
 		shop_ui.back_pressed.connect(hide_all_uis)
 	
 	shop_ui.visible = true
-	shop_ui.update_currency_display(money, gems, pull_currency)
+	shop_ui.update_currency_display(gold, gems, pull_currency)
 
 func _on_shop_purchase_requested(item_id: String, category: String):
 	print("Purchase requested: ", item_id, " from category: ", category)
@@ -877,16 +880,16 @@ func _on_shop_purchase_requested(item_id: String, category: String):
 			show_shop_message("This category is not yet available!")
 
 func handle_gems_purchase(item_id: String):
-	# Map item IDs to gem amounts and costs
+	# Map item IDs to gem amounts and costs (IN DOLLARS, not cents)
 	var gem_amounts = {
-		"gems_1": {"gems": 1, "cost": 10},
-		"gems_5": {"gems": 5, "cost": 50},
-		"gems_10": {"gems": 10, "cost": 100},
-		"gems_small": {"gems": 1, "cost": 10},
-		"gems_medium": {"gems": 5, "cost": 50},
-		"gems_large": {"gems": 20, "cost": 200},
-		"gems_xlarge": {"gems": 50, "cost": 500},
-		"gems_mega": {"gems": 100, "cost": 1000}
+		"gems_1": {"gems": 1, "cost": 0.99},
+		"gems_5": {"gems": 5, "cost": 4.99},
+		"gems_10": {"gems": 10, "cost": 9.99},
+		"gems_small": {"gems": 1, "cost": 0.99},
+		"gems_medium": {"gems": 5, "cost": 4.99},
+		"gems_large": {"gems": 20, "cost": 19.99},
+		"gems_xlarge": {"gems": 50, "cost": 49.99},
+		"gems_mega": {"gems": 100, "cost": 99.99}
 	}
 	
 	if not gem_amounts.has(item_id):
@@ -897,7 +900,7 @@ func handle_gems_purchase(item_id: String):
 	
 	# Check if player has enough money
 	if money < item.cost:
-		show_shop_message("Not enough money!\nNeed: " + str(item.cost) + " money\nHave: " + str(money) + " money")
+		show_shop_message("Not enough money!\nNeed: " + format_money(item.cost) + "\nHave: " + format_money(money))
 		return
 	
 	# Process purchase
@@ -906,12 +909,12 @@ func handle_gems_purchase(item_id: String):
 	
 	update_ui()
 	if shop_ui != null:
-		shop_ui.update_currency_display(money, gems, pull_currency)
+		shop_ui.update_currency_display(gold, gems, pull_currency)
 	
 	save_game()
 	
-	show_shop_message("Purchased " + str(item.gems) + " gems!")
-	print("Purchased gems: ", item.gems, " for ", item.cost, " money")
+	show_shop_message("Purchased " + str(item.gems) + " gems for " + format_money(item.cost) + "!")
+	print("Purchased gems: ", item.gems, " for ", format_money(item.cost))
 
 func handle_pulls_purchase(item_id: String):
 	# Map item IDs to pull amounts and costs
@@ -941,7 +944,7 @@ func handle_pulls_purchase(item_id: String):
 	
 	update_ui()
 	if shop_ui != null:
-		shop_ui.update_currency_display(money, gems, pull_currency)
+		shop_ui.update_currency_display(gold, gems, pull_currency)
 	
 	save_game()
 	

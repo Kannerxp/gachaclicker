@@ -13,13 +13,13 @@ func _ready():
 func _on_back_pressed():
 	back_pressed.emit()
 
-func update_display(money: int, current_timer: float, generation_interval: float, speed_multiplier: float):
-	# Update money display
-	money_label.text = "Money: " + str(money)
+func update_display(money: float, current_timer: float, generation_interval: float, speed_multiplier: float):
+	# Update money display with 2 decimal places
+	money_label.text = "Money: $%.2f" % money
 	
 	# Calculate actual generation time with multiplier
 	var actual_interval = generation_interval / speed_multiplier
-	rate_label.text = "Generates 1 money every " + str(snapped(actual_interval, 0.1)) + " seconds"
+	rate_label.text = "Generates $1.00 every " + str(snapped(actual_interval, 0.1)) + " seconds"
 	if speed_multiplier > 1.0:
 		rate_label.text += " (x" + str(snapped(speed_multiplier, 0.1)) + " speed)"
 	
@@ -29,4 +29,4 @@ func update_display(money: int, current_timer: float, generation_interval: float
 		time_remaining = actual_interval
 	
 	var seconds_left = int(ceil(time_remaining))
-	timer_label.text = "Next money in: " + str(seconds_left) + "s"
+	timer_label.text = "Next $1.00 in: " + str(seconds_left) + "s"

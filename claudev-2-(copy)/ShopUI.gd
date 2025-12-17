@@ -15,13 +15,14 @@ enum Category {
 }
 
 var current_category: Category = Category.GEMS
-var current_money: int = 0
+var current_gold: int = 0
 var current_gems: int = 0
 var current_pulls: int = 0
 
 # Shop item data
 var gems_items: Array[Dictionary] = []
 var pulls_items: Array[Dictionary] = []
+var gold_items: Array[Dictionary] = []
 
 # Daily limits (would be saved/loaded from save file)
 var daily_limits: Dictionary = {}
@@ -67,7 +68,7 @@ func initialize_gems_items():
 			"id": "gems_1",
 			"name": "1 Gem",
 			"gems": 1,
-			"price": 99,  # cents
+			"price": 0.99,
 			"daily_limit": 5,
 			"discount": 0
 		},
@@ -75,7 +76,7 @@ func initialize_gems_items():
 			"id": "gems_5",
 			"name": "5 Gems",
 			"gems": 5,
-			"price": 499,
+			"price": 4.99,
 			"daily_limit": 3,
 			"discount": 20
 		},
@@ -83,7 +84,7 @@ func initialize_gems_items():
 			"id": "gems_10",
 			"name": "10 Gems",
 			"gems": 10,
-			"price": 999,
+			"price": 9.99,
 			"daily_limit": 1,
 			"discount": 20
 		},
@@ -91,7 +92,7 @@ func initialize_gems_items():
 			"id": "gems_small",
 			"name": "1 Gem",
 			"gems": 1,
-			"price": 99,
+			"price": 0.99,
 			"daily_limit": -1,  # No limit
 			"discount": 0
 		},
@@ -99,7 +100,7 @@ func initialize_gems_items():
 			"id": "gems_medium",
 			"name": "5 Gems",
 			"gems": 5,
-			"price": 499,
+			"price": 4.99,
 			"daily_limit": -1,
 			"discount": 0
 		},
@@ -107,7 +108,7 @@ func initialize_gems_items():
 			"id": "gems_large",
 			"name": "X Gems",
 			"gems": 20,
-			"price": 1999,
+			"price": 19.99,
 			"daily_limit": -1,
 			"discount": 0
 		},
@@ -115,7 +116,7 @@ func initialize_gems_items():
 			"id": "gems_xlarge",
 			"name": "X Gems",
 			"gems": 50,
-			"price": 4999,
+			"price": 49.99,
 			"daily_limit": -1,
 			"discount": 0
 		},
@@ -123,7 +124,7 @@ func initialize_gems_items():
 			"id": "gems_mega",
 			"name": "X Gems",
 			"gems": 100,
-			"price": 9999,
+			"price": 99.99,
 			"daily_limit": -1,
 			"discount": 0
 		}
@@ -247,7 +248,7 @@ func refresh_items():
 
 func show_coming_soon_message():
 	var message = Label.new()
-	message.text = "Coming Soon!"
+	message.text = "Coming Soon"
 	message.add_theme_font_size_override("font_size", 24)
 	message.add_theme_color_override("font_color", Color.GRAY)
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -365,13 +366,8 @@ func create_discount_badge(discount: int) -> Control:
 	
 	return badge
 
-func format_price(cents: int) -> String:
-	var dollars = cents / 100
-	var remaining_cents = cents % 100
-	if remaining_cents == 0:
-		return "$ " + str(dollars)
-	else:
-		return "$ " + str(dollars) + "." + str(remaining_cents).pad_zeros(2)
+func format_price(amount: float) -> String:
+	return "$%.2f" % amount
 
 func get_daily_limit_remaining(item_id: String, max_limit: int) -> int:
 	if max_limit < 0:
@@ -405,12 +401,12 @@ func show_message(text: String):
 	dialog.popup_centered()
 	dialog.confirmed.connect(dialog.queue_free)
 
-func update_currency_display(money: int, gems: int, pulls: int):
-	current_money = money
+func update_currency_display(gold: int, gems: int, pulls: int):
+	current_gold = gold
 	current_gems = gems
 	current_pulls = pulls
 	
-	gold_label.text = "Gold: " + str(money)
+	gold_label.text = "Gold: " + str(gold)
 	gems_label.text = "Gems: " + str(gems)
 	pulls_label.text = "Pulls: " + str(pulls)
 
