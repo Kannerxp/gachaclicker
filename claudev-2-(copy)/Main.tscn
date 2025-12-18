@@ -187,7 +187,7 @@ text = "Collection"
 custom_minimum_size = Vector2(150, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "Story"
+text = "Quest"
 
 [node name="EnemyContainer" type="Control" parent="."]
 layout_mode = 1

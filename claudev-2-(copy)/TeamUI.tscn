@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://drxb8h3k5y2qp"]
 
-[ext_resource type="Script" path="res://TeamUI.gd" id="1"]
+[ext_resource type="Script" uid="uid://5asqfspepl4b" path="res://TeamUI.gd" id="1"]
 
 [node name="TeamUI" type="Control"]
 layout_mode = 3

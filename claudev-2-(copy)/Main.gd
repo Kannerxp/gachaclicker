@@ -75,6 +75,11 @@ var prestige_scene = preload("res://PrestigeUI.tscn")
 # Auto-gold timer
 var auto_gold_timer: float = 0.0
 
+# Offline prgression system
+var welcome_back_scene = preload("res://WelcomeBackUI.tscn")
+var welcome_back_ui: Control = null
+var last_logout_time: int = 0  # Unix timestamp
+
 # UI References
 @onready var level_label = $UI/TopBar/TopBarContent/CenterSection/LevelLabel
 @onready var gold_icon = $UI/TopBar/TopBarContent/LeftSection/GoldIcon
@@ -105,23 +110,44 @@ var active_team: Array[Character] = []
 const MAX_TEAM_SIZE = 5
 
 func _ready():
+	print("========== GAME STARTING ==========")
+	print("Creating new gacha_system...")
 	gacha_system = GachaSystem.new()
+	
+	print("Creating new prestige_system...")
 	prestige_system = PrestigeSystem.new()
+	print("Prestige system created. Initial state:")
+	print("  - Points: ", prestige_system.prestige_points)
+	print("  - Upgrades: ", prestige_system.purchased_upgrades)
 	
 	# Load UI icon sprites
 	gold_icon.texture = SpriteManager.get_icon_texture("gold")
 	gems_icon.texture = SpriteManager.get_icon_texture("gems")
 	
 	# Try to load saved game first
+	print("Attempting to load game...")
 	if load_game():
 		print("Game loaded successfully!")
+		print("After load, prestige state:")
+		print("  - Points: ", prestige_system.prestige_points)
+		print("  - Upgrades: ", prestige_system.purchased_upgrades)
+		check_offline_progression()
 	else:
 		# If no save exists, initialize new game
+		print("No save found, initializing new game...")
 		initialize_player_character()
+	
+	print("After initialization, prestige state:")
+	print("  - Points: ", prestige_system.prestige_points)
+	print("  - Upgrades: ", prestige_system.purchased_upgrades)
 	
 	spawn_enemy()
 	update_ui()
 	update_team_display()
+	
+	print("After UI update, prestige state:")
+	print("  - Points: ", prestige_system.prestige_points)
+	print("  - Upgrades: ", prestige_system.purchased_upgrades)
 	
 	# Connect UI buttons
 	bank_button.pressed.connect(_on_bank_button_pressed)
@@ -143,6 +169,8 @@ func _ready():
 	save_timer.autostart = true
 	save_timer.timeout.connect(save_game)
 	add_child(save_timer)
+	
+	print("========== GAME START COMPLETE ==========")
 
 func initialize_player_character():
 	player_character = Character.new()
@@ -630,11 +658,20 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 
 # ========== SAVE/LOAD SYSTEM ==========
 
+
 func save_game():
 	var save_file = FileAccess.open(SAVE_FILE_PATH, FileAccess.WRITE)
 	if save_file == null:
 		print("Error: Could not open save file for writing!")
 		return
+	
+	# Update logout time
+	last_logout_time = Time.get_unix_time_from_system()
+	
+	# Get prestige data BEFORE creating save_data dictionary
+	var prestige_save = prestige_system.get_save_data()
+	print("DEBUG SAVE: Prestige points = ", prestige_save.get("prestige_points"))
+	print("DEBUG SAVE: Purchased upgrades = ", prestige_save.get("purchased_upgrades"))
 	
 	var save_data = {
 		"gold": gold,
@@ -645,14 +682,15 @@ func save_game():
 		"characters": serialize_characters(),
 		"gacha_pity": gacha_system.get_pity_info(),
 		"active_team_ids": serialize_team(),
-		"prestige": prestige_system.get_save_data(),
-		"shop": shop_ui.get_save_data() if shop_ui != null else {}
+		"prestige": prestige_save,
+		"shop": shop_ui.get_save_data() if shop_ui != null else {},
+		"last_logout_time": last_logout_time
 	}
 	
 	var json_string = JSON.stringify(save_data)
 	save_file.store_string(json_string)
 	save_file.close()
-	print("Game saved!")
+	print("Game saved! Prestige upgrades saved: ", prestige_save.get("purchased_upgrades"))
 
 func load_game() -> bool:
 	if not FileAccess.file_exists(SAVE_FILE_PATH):
@@ -667,6 +705,10 @@ func load_game() -> bool:
 	var json_string = save_file.get_as_text()
 	save_file.close()
 	
+	# Debug: Print raw JSON
+	print("DEBUG LOAD: Raw JSON from file:")
+	print(json_string.substr(0, 500))  # First 500 chars
+	
 	var json = JSON.new()
 	var parse_result = json.parse(json_string)
 	if parse_result != OK:
@@ -675,12 +717,18 @@ func load_game() -> bool:
 	
 	var save_data = json.data
 	
+	print("DEBUG LOAD: Parsed save_data type = ", typeof(save_data))
+	print("DEBUG LOAD: save_data keys = ", save_data.keys() if save_data is Dictionary else "NOT A DICTIONARY")
+	
 	# Load currencies and progression
 	gold = save_data.get("gold", 0)
 	gems = save_data.get("gems", 20)
 	pull_currency = save_data.get("pull_currency", 20)
-	money = save_data.get("money", 20.0)
+	money = save_data.get("money", 20)
 	current_level = save_data.get("current_level", 1)
+	
+	# Load logout time
+	last_logout_time = save_data.get("last_logout_time", 0)
 	
 	# Load characters
 	deserialize_characters(save_data.get("characters", []))
@@ -693,15 +741,36 @@ func load_game() -> bool:
 	gacha_system.character_pity_count = pity_info.get("character_pity", 0)
 	gacha_system.weapon_pity_count = pity_info.get("weapon_pity", 0)
 	
-	# Load prestige data
+	# Load prestige data - WITH EXTENSIVE DEBUG LOGGING
+	print("DEBUG LOAD: About to load prestige data...")
+	print("DEBUG LOAD: prestige_system exists? ", prestige_system != null)
+	
 	var prestige_data = save_data.get("prestige", {})
-	prestige_system.load_save_data(prestige_data)
+	print("DEBUG LOAD: prestige_data from save_data = ", prestige_data)
+	print("DEBUG LOAD: prestige_data type = ", typeof(prestige_data))
+	
+	if prestige_data is Dictionary:
+		print("DEBUG LOAD: prestige_data keys = ", prestige_data.keys())
+		print("DEBUG LOAD: prestige_points in data = ", prestige_data.get("prestige_points"))
+		print("DEBUG LOAD: purchased_upgrades in data = ", prestige_data.get("purchased_upgrades"))
+		print("DEBUG LOAD: purchased_upgrades type = ", typeof(prestige_data.get("purchased_upgrades")))
+	
+	if prestige_data.is_empty():
+		print("WARNING: No prestige data found in save file!")
+	else:
+		print("DEBUG LOAD: Calling prestige_system.load_save_data()...")
+		prestige_system.load_save_data(prestige_data)
+		print("DEBUG LOAD: After load_save_data():")
+		print("DEBUG LOAD: Prestige system points: ", prestige_system.prestige_points)
+		print("DEBUG LOAD: Prestige system upgrades: ", prestige_system.purchased_upgrades)
+		print("DEBUG LOAD: Prestige system upgrades size: ", prestige_system.purchased_upgrades.size())
 	
 	# Load shop data
 	var shop_data = save_data.get("shop", {})
 	if shop_ui != null:
 		shop_ui.load_save_data(shop_data)
 	
+	print("DEBUG LOAD: Load complete!")
 	return true
 
 func serialize_characters() -> Array:
@@ -1266,6 +1335,145 @@ func show_pull_result(results: Array[Character]):
 	popup.popup_centered()
 	popup.confirmed.connect(popup.queue_free)
 
+# ========== Offline ==========
+func check_offline_progression():
+	# Check if player has unlocked offline progression
+	if not prestige_system.has_offline_progression():
+		print("Offline progression not unlocked yet")
+		return
+	
+	if last_logout_time == 0:
+		print("No logout time recorded")
+		return
+	
+	# Calculate time away in seconds
+	var current_time = Time.get_unix_time_from_system()
+	var time_away_seconds = current_time - last_logout_time
+	
+	# Need at least 60 seconds away to trigger offline rewards
+	if time_away_seconds < 60:
+		print("Not enough time away for offline rewards")
+		return
+	
+	# Get offline time limit (in hours, -1 for unlimited)
+	var time_limit_hours = prestige_system.get_offline_time_limit()
+	var time_limit_seconds = time_limit_hours * 3600 if time_limit_hours > 0 else time_away_seconds
+	
+	# Cap time away to the limit
+	var effective_time = min(time_away_seconds, time_limit_seconds) if time_limit_hours > 0 else time_away_seconds
+	
+	print("Player was away for ", effective_time, " seconds (", effective_time / 3600.0, " hours)")
+	
+	# Calculate offline rewards
+	var rewards = calculate_offline_rewards(effective_time)
+	
+	# Show welcome back UI if we have any rewards
+	if rewards.gold > 0 or rewards.money > 0 or rewards.levels > 0:
+		show_welcome_back_ui(time_away_seconds, rewards, time_limit_hours)
+
+func calculate_offline_rewards(time_seconds: float) -> Dictionary:
+	var rewards = {
+		"gold": 0,
+		"money": 0,
+		"levels": 0
+	}
+	
+	# Simulate combat progression for gold
+	# Assume average of 3 seconds per enemy kill (auto-attack interval)
+	var kills_per_hour = 3600 / 3.0
+	var hours = time_seconds / 3600.0
+	var estimated_kills = int(kills_per_hour * hours)
+	
+	# Calculate gold from progression
+	var starting_level = current_level
+	var simulated_level = starting_level
+	var total_gold = 0
+	
+	# Simulate killing enemies and progressing through levels
+	for i in range(estimated_kills):
+		# Every 10th kill is a boss (gives more gold)
+		var is_boss_kill = (i + 1) % 10 == 0
+		
+		var gold_reward = 0
+		if is_boss_kill:
+			gold_reward = 50 + (simulated_level * 10)
+		else:
+			gold_reward = 5 + (simulated_level * 2)
+		
+		# Apply prestige gold multiplier
+		gold_reward = int(gold_reward * prestige_system.get_gold_multiplier())
+		
+		total_gold += gold_reward
+		simulated_level += 1
+	
+	rewards.gold = total_gold
+	rewards.levels = simulated_level - starting_level
+	
+	# Calculate money generation if unlocked
+	if prestige_system.has_offline_money_generation():
+		var money_per_minute = 1.0 / (money_generation_interval / 60.0)
+		money_per_minute *= prestige_system.get_money_speed_multiplier()
+		var minutes = time_seconds / 60.0
+		rewards.money = int(money_per_minute * minutes)
+	
+	return rewards
+
+func show_welcome_back_ui(time_away: float, rewards: Dictionary, limit_hours: float):
+	if welcome_back_ui != null:
+		welcome_back_ui.queue_free()
+	
+	welcome_back_ui = welcome_back_scene.instantiate()
+	add_child(welcome_back_ui)
+	
+	var had_limit = limit_hours != 0
+	welcome_back_ui.setup(
+		time_away,
+		rewards.gold,
+		rewards.money,
+		rewards.levels,
+		had_limit,
+		limit_hours
+	)
+	
+	welcome_back_ui.rewards_claimed.connect(_on_offline_rewards_claimed)
+
+func _on_offline_rewards_claimed(rewards: Dictionary):
+	# Apply the rewards
+	gold += rewards.gold
+	money += rewards.money
+	current_level += rewards.levels
+	
+	print("Claimed offline rewards: ", rewards)
+	
+	# Spawn new enemy at new level
+	spawn_enemy()
+	update_ui()
+	save_game()
+	
+	# Show a brief notification
+	var notification = Label.new()
+	notification.text = "Rewards claimed!"
+	notification.add_theme_font_size_override("font_size", 24)
+	notification.add_theme_color_override("font_color", Color.GREEN)
+	notification.position = Vector2(get_viewport_rect().size.x / 2 - 100, 100)
+	add_child(notification)
+	
+	# Fade out notification
+	var tween = create_tween()
+	tween.tween_property(notification, "modulate:a", 0.0, 2.0).set_delay(1.0)
+	tween.tween_callback(notification.queue_free)
+
+func print_prestige_debug():
+	print("========== PRESTIGE DEBUG ==========")
+	print("Prestige Points: ", prestige_system.prestige_points)
+	print("Purchased Upgrades: ", prestige_system.purchased_upgrades)
+	print("Total Upgrades Available: ", prestige_system.upgrades.size())
+	for upgrade_id in prestige_system.purchased_upgrades:
+		var upgrade = prestige_system.get_upgrade_by_id(upgrade_id)
+		if not upgrade.is_empty():
+			print("  - ID ", upgrade_id, ": ", upgrade.name)
+	print("===================================")
+
 # ========== CHARACTER FUNCTIONS ==========
 
 func _on_character_selected(character: Character):
@@ -1453,6 +1661,10 @@ func _on_prestige_button_pressed():
 func show_prestige_ui():
 	hide_all_uis()
 	
+	# Debug: Print prestige state when opening UI
+	print("Opening Prestige UI...")
+	print_prestige_debug()
+	
 	if prestige_ui == null:
 		prestige_ui = prestige_scene.instantiate()
 		add_child(prestige_ui)
@@ -1462,6 +1674,7 @@ func show_prestige_ui():
 		prestige_ui.ascend_requested.connect(_on_ascend_requested)
 		prestige_ui.back_pressed.connect(hide_all_uis)
 	
+	# Always refresh the prestige UI with current data
 	prestige_ui.setup(prestige_system)
 	prestige_ui.visible = true
 	prestige_ui.update_ascend_button(current_level)
@@ -1551,6 +1764,11 @@ func _input(event):
 				use_ability(3)
 			KEY_5:
 				use_ability(4)
+	
+	# Debug: Press P to print prestige info
+	if event is InputEventKey and event.pressed and event.keycode == KEY_P:
+		if not Input.is_key_pressed(KEY_CTRL):  # Don't trigger if doing Ctrl+P
+			print_prestige_debug()
 	
 	# Cheat code to reset progress (Press R key)
 	if event is InputEventKey and event.pressed and event.keycode == KEY_R:
