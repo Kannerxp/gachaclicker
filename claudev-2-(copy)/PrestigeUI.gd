@@ -81,7 +81,7 @@ func create_upgrade_display(upgrade: Dictionary) -> Control:
 		status_label.text = "✓ OWNED"
 		status_label.add_theme_color_override("font_color", Color.GREEN)
 	elif prestige_system.is_upgrade_locked(upgrade.id):
-		status_label.text = "🔒 LOCKED"
+		status_label.text = "LOCKED"
 		status_label.add_theme_color_override("font_color", Color.GRAY)
 	else:
 		status_label.text = str(upgrade.cost) + " PP"

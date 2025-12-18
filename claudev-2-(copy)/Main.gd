@@ -80,6 +80,19 @@ var welcome_back_scene = preload("res://WelcomeBackUI.tscn")
 var welcome_back_ui: Control = null
 var last_logout_time: int = 0  # Unix timestamp
 
+# Stamina system
+var current_stamina: int = 100
+var max_stamina: int = 100
+var stamina_regen_timer: float = 0.0
+var stamina_regen_interval: float = 300.0  # 5 minutes (300 seconds)
+
+# Game progression (ADD highest_level_reached)
+var highest_level_reached: int = 1  # Persists through prestige
+
+# Quest UI
+var quest_ui: Control = null
+var quest_scene = preload("res://QuestUI.tscn")
+
 # UI References
 @onready var level_label = $UI/TopBar/TopBarContent/CenterSection/LevelLabel
 @onready var gold_icon = $UI/TopBar/TopBarContent/LeftSection/GoldIcon
@@ -196,10 +209,17 @@ func _process(delta):
 	update_ability_cooldowns(delta)
 	update_buff_debuff_timers(delta)
 	handle_auto_gold(delta)
+	handle_stamina_regen(delta)
 	
 	# Update Bank UI in real-time if visible
 	if bank_ui != null and bank_ui.visible:
 		bank_ui.update_display(money, money_timer, money_generation_interval, prestige_system.get_money_speed_multiplier())
+	
+	# Update Quest UI stamina timer if visible
+	if quest_ui != null and quest_ui.visible:
+		quest_ui.stamina_regen_time = stamina_regen_timer
+		quest_ui.current_stamina = current_stamina
+		quest_ui.update_display()
 
 func handle_money_generation(delta):
 	var speed_multiplier = prestige_system.get_money_speed_multiplier()
@@ -505,6 +525,10 @@ func _on_enemy_defeated(gold_reward: int):
 	gold += multiplied_gold
 	current_level += 1
 	
+	# Track highest level reached
+	if current_level > highest_level_reached:
+		highest_level_reached = current_level
+	
 	print("Enemy defeated! Gold: +", multiplied_gold, " Level: ", current_level)
 	
 	if is_boss_level:
@@ -679,11 +703,15 @@ func save_game():
 		"pull_currency": pull_currency,
 		"money": money,
 		"current_level": current_level,
+		"highest_level_reached": highest_level_reached,
+		"current_stamina": current_stamina,
+		"stamina_regen_timer": stamina_regen_timer,
 		"characters": serialize_characters(),
 		"gacha_pity": gacha_system.get_pity_info(),
 		"active_team_ids": serialize_team(),
 		"prestige": prestige_save,
 		"shop": shop_ui.get_save_data() if shop_ui != null else {},
+		"quest": quest_ui.get_save_data() if quest_ui != null else {},
 		"last_logout_time": last_logout_time
 	}
 	
@@ -772,6 +800,16 @@ func load_game() -> bool:
 	
 	print("DEBUG LOAD: Load complete!")
 	return true
+	
+	# Load stamina
+	current_stamina = save_data.get("current_stamina", 100)
+	stamina_regen_timer = save_data.get("stamina_regen_timer", 0.0)
+	highest_level_reached = save_data.get("highest_level_reached", 1)
+	
+	# Load quest data
+	var quest_data = save_data.get("quest", {})
+	if quest_ui != null:
+		quest_ui.load_save_data(quest_data)
 
 func serialize_characters() -> Array:
 	var serialized = []
@@ -914,13 +952,7 @@ func _on_settings_button_pressed():
 	show_settings_ui()
 
 func _on_story_button_pressed():
-	# Placeholder for story system
-	var info = AcceptDialog.new()
-	info.dialog_text = "Story system coming soon\n\nThis will feature:\n• Revamped upgrading system\n• Story\n• Events\n• Story rewards"
-	info.title = "Coming Soon"
-	add_child(info)
-	info.popup_centered()
-	info.confirmed.connect(info.queue_free)
+	show_quest_ui()
 
 func show_shop_ui():
 	hide_all_uis()
@@ -1094,6 +1126,102 @@ func show_team_ui():
 	var total_dps = calculate_team_damage(true)
 	team_ui.refresh_team(active_team, unlocked_characters, total_dps)
 
+func show_quest_ui():
+	hide_all_uis()
+	
+	if quest_ui == null:
+		quest_ui = quest_scene.instantiate()
+		add_child(quest_ui)
+		
+		# Connect signals
+		quest_ui.back_pressed.connect(_on_quest_back_pressed)
+		quest_ui.stamina_refill_requested.connect(_on_stamina_refill_requested)
+		quest_ui.open_shop_requested.connect(_on_quest_open_shop)
+		quest_ui.episode_play_requested.connect(_on_quest_episode_play)
+	
+	quest_ui.visible = true
+	quest_ui.setup(
+		current_stamina,
+		max_stamina,
+		stamina_regen_timer,
+		stamina_regen_interval,
+		gems,
+		highest_level_reached
+	)
+
+func _on_quest_back_pressed():
+	if quest_ui != null:
+		quest_ui.visible = false
+
+func _on_quest_open_shop():
+	# Gems button clicked - open shop
+	hide_all_uis()
+	show_shop_ui()
+
+func _on_quest_episode_play(stamina_cost: int):
+	# Play button clicked - consume stamina
+	if current_stamina >= stamina_cost:
+		current_stamina -= stamina_cost
+		print("Consumed ", stamina_cost, " stamina. Remaining: ", current_stamina, "/", max_stamina)
+		
+		save_game()
+		
+		# Update quest UI
+		if quest_ui != null and quest_ui.visible:
+			quest_ui.current_stamina = current_stamina
+			quest_ui.update_display()
+			quest_ui.refresh_episodes()
+
+func _on_stamina_refill_requested():
+	# Cost to refill stamina
+	var refill_cost = 10  # 10 gems for full refill
+	
+	if current_stamina >= max_stamina:
+		show_quest_message("Stamina is already full!")
+		return
+	
+	if gems < refill_cost:
+		show_quest_message("Not enough gems!\nNeed: " + str(refill_cost) + " gems")
+		return
+	
+	# Show confirmation dialog
+	var confirm = ConfirmationDialog.new()
+	var stamina_to_gain = max_stamina - current_stamina
+	confirm.dialog_text = "Refill stamina?\n\nCost: " + str(refill_cost) + " gems\nGain: " + str(stamina_to_gain) + " stamina"
+	confirm.title = "Stamina Refill"
+	add_child(confirm)
+	
+	confirm.confirmed.connect(_perform_stamina_refill.bind(confirm, refill_cost))
+	confirm.canceled.connect(confirm.queue_free)
+	confirm.popup_centered()
+
+func _perform_stamina_refill(dialog: ConfirmationDialog, cost: int):
+	gems -= cost
+	current_stamina = max_stamina
+	stamina_regen_timer = 0.0
+	
+	update_ui()
+	
+	if quest_ui != null and quest_ui.visible:
+		quest_ui.current_stamina = current_stamina
+		quest_ui.current_gems = gems
+		quest_ui.stamina_regen_time = stamina_regen_timer
+		quest_ui.update_display()
+		quest_ui.refresh_episodes()
+	
+	save_game()
+	dialog.queue_free()
+	
+	show_quest_message("Stamina refilled!")
+
+func show_quest_message(text: String):
+	var dialog = AcceptDialog.new()
+	dialog.dialog_text = text
+	dialog.title = "Quest"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+
 func hide_all_uis():
 	if shop_ui != null:
 		shop_ui.visible = false
@@ -1109,6 +1237,8 @@ func hide_all_uis():
 		bank_ui.visible = false
 	if settings_ui != null:
 		settings_ui.visible = false
+	if quest_ui != null:
+		quest_ui.visible = false
 
 # ========== SHOP FUNCTIONS ==========
 
@@ -1654,6 +1784,17 @@ func _on_unequip_weapon(character: Character, popup: AcceptDialog):
 	# Reopen the popup with updated info
 	show_character_popup(character)
 
+# ========== Quest Functions ==========
+func handle_stamina_regen(delta):
+	if current_stamina < max_stamina:
+		stamina_regen_timer += delta
+		
+		# Regenerate 1 stamina every interval
+		if stamina_regen_timer >= stamina_regen_interval:
+			stamina_regen_timer -= stamina_regen_interval
+			current_stamina = min(current_stamina + 1, max_stamina)
+			print("Regenerated 1 stamina. Current: ", current_stamina, "/", max_stamina)
+
 # ========== PRESTIGE UI FUNCTIONS ==========
 func _on_prestige_button_pressed():
 	show_prestige_ui()
@@ -1699,7 +1840,7 @@ func _perform_ascension(dialog: ConfirmationDialog):
 	var points = prestige_system.calculate_prestige_points_from_level(current_level)
 	prestige_system.add_prestige_points(points)
 	
-	# Reset level
+	# Reset level (but NOT highest_level_reached!)
 	current_level = 1
 	
 	# Spawn new enemy
@@ -1715,6 +1856,7 @@ func _perform_ascension(dialog: ConfirmationDialog):
 	
 	dialog.queue_free()
 	print("Ascended! Gained ", points, " prestige points")
+	print("Highest level reached: ", highest_level_reached, " (preserved through prestige)")
 
 # ========== BANK UI FUNCTIONS ==========
 
