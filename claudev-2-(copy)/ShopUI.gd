@@ -136,7 +136,7 @@ func initialize_pulls_items():
 			"id": "pulls_1",
 			"name": "1 Pull",
 			"pulls": 1,
-			"price": 99,
+			"price": 5,
 			"daily_limit": 5,
 			"discount": 0
 		},
@@ -144,14 +144,14 @@ func initialize_pulls_items():
 			"id": "pulls_5",
 			"name": "5 Pulls",
 			"pulls": 5,
-			"price": 499,
+			"price": 25,
 			"daily_limit": 3,
 			"discount": 20
 		},
 		{
 			"id": "pulls_10",
 			"name": "10 Pulls",
-			"pulls": 10,
+			"pulls": 50,
 			"price": 999,
 			"daily_limit": 1,
 			"discount": 20
@@ -160,7 +160,7 @@ func initialize_pulls_items():
 			"id": "pulls_small",
 			"name": "1 Pull",
 			"pulls": 1,
-			"price": 99,
+			"price": 5,
 			"daily_limit": -1,
 			"discount": 0
 		},
@@ -168,7 +168,7 @@ func initialize_pulls_items():
 			"id": "pulls_medium",
 			"name": "5 Pulls",
 			"pulls": 5,
-			"price": 499,
+			"price": 25,
 			"daily_limit": -1,
 			"discount": 0
 		},
@@ -176,7 +176,7 @@ func initialize_pulls_items():
 			"id": "pulls_large",
 			"name": "X Pulls",
 			"pulls": 20,
-			"price": 1999,
+			"price": 100,
 			"daily_limit": -1,
 			"discount": 0
 		}

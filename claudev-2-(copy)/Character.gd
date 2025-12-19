@@ -34,6 +34,14 @@ enum Formation {
 	BACK      # Back row - less damage, faster abilities
 }
 
+# Material types for upgrades
+enum MaterialType {
+	BASIC,      # Levels 21-40
+	ADVANCED,   # Levels 41-60
+	EXPERT,     # Levels 61-80
+	MASTER      # Levels 81-100
+}
+
 @export var name: String = ""
 @export var rarity: Rarity = Rarity.COMMON
 @export var character_type: Type = Type.CHARACTER
@@ -41,23 +49,19 @@ enum Formation {
 @export var base_damage: int = 10
 @export var is_unlocked: bool = false
 @export var duplicate_count: int = 0
-@export var character_id: int = -1  # Unique identifier for duplicate checking
+@export var character_id: int = -1
 
-# New attributes for team composition
 @export var role: Role = Role.DPS
 @export var element: Element = Element.NEUTRAL
 @export var formation_position: Formation = Formation.FRONT
 
-# Weapon system
 var equipped_weapon: Character = null
-var is_player_character: bool = false  # True only for the main player character
-var is_in_team: bool = false  # Whether this character is in the active team
+var is_player_character: bool = false
+var is_in_team: bool = false
 
-# Ability system
 var ability_cooldown: float = 0.0
-var ability_cooldown_max: float = 10.0  # Base cooldown in seconds
+var ability_cooldown_max: float = 10.0
 
-# Rarity-based stats
 func get_rarity_multiplier() -> float:
 	match rarity:
 		Rarity.COMMON:
@@ -95,9 +99,52 @@ func get_upgrade_cost() -> int:
 	var base_cost = level * 50
 	return int(base_cost * get_rarity_multiplier())
 
+# NEW: Get material requirements for upgrade
+func get_material_requirement() -> Dictionary:
+	var next_level = level + 1
+	
+	# No materials needed for levels 1-20
+	if next_level <= 20:
+		return {}
+	
+	# Determine which material and how much
+	var material_type: MaterialType
+	var amount: int
+	
+	if next_level <= 40:
+		material_type = MaterialType.BASIC
+		amount = int(1 * get_rarity_multiplier())
+	elif next_level <= 60:
+		material_type = MaterialType.ADVANCED
+		amount = int(2 * get_rarity_multiplier())
+	elif next_level <= 80:
+		material_type = MaterialType.EXPERT
+		amount = int(3 * get_rarity_multiplier())
+	else:  # 81-100
+		material_type = MaterialType.MASTER
+		amount = int(5 * get_rarity_multiplier())
+	
+	return {
+		"type": material_type,
+		"amount": amount
+	}
+
+# NEW: Get material name as string
+static func get_material_name(mat_type: MaterialType) -> String:
+	match mat_type:
+		MaterialType.BASIC:
+			return "Basic Essence"
+		MaterialType.ADVANCED:
+			return "Advanced Essence"
+		MaterialType.EXPERT:
+			return "Expert Essence"
+		MaterialType.MASTER:
+			return "Master Essence"
+		_:
+			return "Unknown"
+
 func add_duplicate():
 	duplicate_count += 1
-	# Each duplicate gives a small permanent boost
 	base_damage += int(2 * get_rarity_multiplier())
 
 func get_rarity_color() -> Color:
@@ -184,38 +231,36 @@ func get_element_icon_texture() -> Texture2D:
 func get_role_multiplier() -> float:
 	match role:
 		Role.DPS:
-			return 1.2  # 20% more damage
+			return 1.2
 		Role.TANK:
-			return 0.8  # 20% less damage but tankier
+			return 0.8
 		Role.SUPPORT:
-			return 0.9  # 10% less damage but provides buffs
+			return 0.9
 		_:
 			return 1.0
 
 func get_formation_multiplier() -> float:
 	match formation_position:
 		Formation.FRONT:
-			return 1.15  # 15% more damage in front
+			return 1.15
 		Formation.BACK:
-			return 0.90  # 10% less damage in back (safer)
+			return 0.90
 		_:
 			return 1.0
 
 func get_formation_cooldown_multiplier() -> float:
 	match formation_position:
 		Formation.FRONT:
-			return 1.20  # 20% slower cooldown (longer wait)
+			return 1.20
 		Formation.BACK:
-			return 0.75  # 25% faster cooldown (shorter wait)
+			return 0.75
 		_:
 			return 1.0
 
 func get_modified_ability_cooldown() -> float:
 	var base_cooldown = ability_cooldown_max * get_formation_cooldown_multiplier()
-	# This will be applied from main when available
 	return base_cooldown
 
-# Ability system methods
 func is_ability_ready() -> bool:
 	return ability_cooldown <= 0.0
 
@@ -244,7 +289,6 @@ func get_ability_name() -> String:
 			return "Ability"
 
 func get_ability_damage() -> int:
-	# DPS abilities do 5x normal damage
 	if role == Role.DPS:
 		return get_total_damage() * 5
 	return 0

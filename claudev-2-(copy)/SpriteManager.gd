@@ -11,6 +11,12 @@ const ICON_ARROW_RIGHT = "res://icons/ui/arrow_right.png"
 const ICON_ARROW_UP = "res://icons/ui/arrow_up.png"
 const ICON_ARROW_DOWN = "res://icons/ui/arrow_down.png"
 
+# Material Icons
+const ICON_MATERIAL_BASIC = "res://icons/materials/basic_essence.png"
+const ICON_MATERIAL_ADVANCED = "res://icons/materials/advanced_essence.png"
+const ICON_MATERIAL_EXPERT = "res://icons/materials/expert_essence.png"
+const ICON_MATERIAL_MASTER = "res://icons/materials/master_essence.png"
+
 # Enemy Sprites
 const ENEMY_NORMAL = "res://sprites/enemies/enemy_normal.png"
 const ENEMY_BOSS = "res://sprites/enemies/enemy_boss.png"
@@ -82,7 +88,28 @@ static func get_icon_texture(icon_type: String) -> Texture2D:
 			return load_texture(ICON_ARROW_UP)
 		"arrow_down":
 			return load_texture(ICON_ARROW_DOWN)
+		"material_basic":
+			return load_texture(ICON_MATERIAL_BASIC)
+		"material_advanced":
+			return load_texture(ICON_MATERIAL_ADVANCED)
+		"material_expert":
+			return load_texture(ICON_MATERIAL_EXPERT)
+		"material_master":
+			return load_texture(ICON_MATERIAL_MASTER)
 	return null
+
+static func get_material_icon_texture(mat_type: Character.MaterialType) -> Texture2D:
+	match mat_type:
+		Character.MaterialType.BASIC:
+			return load_texture(ICON_MATERIAL_BASIC)
+		Character.MaterialType.ADVANCED:
+			return load_texture(ICON_MATERIAL_ADVANCED)
+		Character.MaterialType.EXPERT:
+			return load_texture(ICON_MATERIAL_EXPERT)
+		Character.MaterialType.MASTER:
+			return load_texture(ICON_MATERIAL_MASTER)
+		_:
+			return null
 
 static func get_enemy_texture(is_boss: bool) -> Texture2D:
 	if is_boss:
@@ -109,7 +136,6 @@ static func get_element_texture(element: Character.Element) -> Texture2D:
 
 static func create_sprite_or_colored_rect(texture: Texture2D, fallback_color: Color, size: Vector2) -> Control:
 	if texture != null:
-		# Create TextureRect for actual sprite
 		var sprite = TextureRect.new()
 		sprite.texture = texture
 		sprite.custom_minimum_size = size
@@ -117,7 +143,6 @@ static func create_sprite_or_colored_rect(texture: Texture2D, fallback_color: Co
 		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		return sprite
 	else:
-		# Fallback to ColorRect (no emojis)
 		var rect = ColorRect.new()
 		rect.color = fallback_color
 		rect.custom_minimum_size = size
@@ -146,8 +171,7 @@ static func create_icon_sprite(icon_type: String, size: Vector2 = Vector2(24, 24
 	if texture != null:
 		sprite.texture = texture
 	else:
-		# Return empty TextureRect if no sprite found
-		sprite.modulate = Color(1, 1, 1, 0)  # Invisible
+		sprite.modulate = Color(1, 1, 1, 0)
 	
 	return sprite
 

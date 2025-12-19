@@ -14,6 +14,14 @@ var gems: int = 20
 var pull_currency: int = 20
 var money: float = 20.0
 
+# Materials for upgrades
+var materials: Dictionary = {
+	Character.MaterialType.BASIC: 0,
+	Character.MaterialType.ADVANCED: 0,
+	Character.MaterialType.EXPERT: 0,
+	Character.MaterialType.MASTER: 0
+}
+
 # Game progression
 var current_level: int = 1
 var player_damage: int = 10
@@ -105,6 +113,9 @@ var quest_scene = preload("res://QuestUI.tscn")
 @onready var boss_timer_label = $UI/BossTimerLabel
 @onready var team_container = $TeamDisplay/TeamContainer
 
+# Material UI (created dynamically)
+var materials_button: Button = null
+
 # Bottom bar buttons
 @onready var bank_button = $UI/BottomBar/BottomBarContent/BankButton
 @onready var team_button = $UI/BottomBar/BottomBarContent/TeamButton
@@ -172,6 +183,9 @@ func _ready():
 	settings_button.pressed.connect(_on_settings_button_pressed)
 	gems_button.pressed.connect(_on_gems_button_pressed)
 	story_button.pressed.connect(_on_story_button_pressed)
+	
+	# Create materials button
+	create_materials_button()
 	
 	# Hide boss timer initially
 	boss_timer_label.visible = false
@@ -682,7 +696,6 @@ func create_character_display(character: Character, slot_index: int) -> Control:
 
 # ========== SAVE/LOAD SYSTEM ==========
 
-
 func save_game():
 	var save_file = FileAccess.open(SAVE_FILE_PATH, FileAccess.WRITE)
 	if save_file == null:
@@ -702,6 +715,7 @@ func save_game():
 		"gems": gems,
 		"pull_currency": pull_currency,
 		"money": money,
+		"materials": materials,
 		"current_level": current_level,
 		"highest_level_reached": highest_level_reached,
 		"current_stamina": current_stamina,
@@ -755,6 +769,19 @@ func load_game() -> bool:
 	money = save_data.get("money", 20)
 	current_level = save_data.get("current_level", 1)
 	
+	# Load materials
+	var loaded_materials = save_data.get("materials", {})
+	if not loaded_materials.is_empty():
+		materials = loaded_materials
+	else:
+		# Initialize with 0 if not in save
+		materials = {
+			Character.MaterialType.BASIC: 0,
+			Character.MaterialType.ADVANCED: 0,
+			Character.MaterialType.EXPERT: 0,
+			Character.MaterialType.MASTER: 0
+		}
+	
 	# Load logout time
 	last_logout_time = save_data.get("last_logout_time", 0)
 	
@@ -798,9 +825,6 @@ func load_game() -> bool:
 	if shop_ui != null:
 		shop_ui.load_save_data(shop_data)
 	
-	print("DEBUG LOAD: Load complete!")
-	return true
-	
 	# Load stamina
 	current_stamina = save_data.get("current_stamina", 100)
 	stamina_regen_timer = save_data.get("stamina_regen_timer", 0.0)
@@ -810,6 +834,9 @@ func load_game() -> bool:
 	var quest_data = save_data.get("quest", {})
 	if quest_ui != null:
 		quest_ui.load_save_data(quest_data)
+	
+	print("DEBUG LOAD: Load complete!")
+	return true
 
 func serialize_characters() -> Array:
 	var serialized = []
@@ -1118,7 +1145,7 @@ func show_team_ui():
 		
 		# Connect signals
 		team_ui.character_selected_for_team.connect(_on_character_selected_for_team)
-		team_ui.character_removed_from_team.connect(_on_character_removed_from_team)  # ADD THIS LINE
+		team_ui.character_removed_from_team.connect(_on_character_removed_from_team)
 		team_ui.formation_changed.connect(_on_formation_changed)
 		team_ui.back_pressed.connect(hide_all_uis)
 	
@@ -1159,18 +1186,54 @@ func _on_quest_open_shop():
 	show_shop_ui()
 
 func _on_quest_episode_play(stamina_cost: int):
-	# Play button clicked - consume stamina
+	# Play button clicked - consume stamina and reward materials
 	if current_stamina >= stamina_cost:
 		current_stamina -= stamina_cost
+		
+		# Reward materials based on highest level reached
+		var mat_rewards = calculate_quest_material_rewards()
+		
+		var reward_text = "Episode completed!\n\nConsumed " + str(stamina_cost) + " stamina.\n\n"
+		reward_text += "Rewards:\n"
+		
+		for mat_type in mat_rewards:
+			var amount = mat_rewards[mat_type]
+			if amount > 0:
+				materials[mat_type] = materials.get(mat_type, 0) + amount
+				reward_text += "+" + str(amount) + " " + Character.get_material_name(mat_type) + "\n"
+		
 		print("Consumed ", stamina_cost, " stamina. Remaining: ", current_stamina, "/", max_stamina)
 		
 		save_game()
+		update_ui()
 		
 		# Update quest UI
 		if quest_ui != null and quest_ui.visible:
 			quest_ui.current_stamina = current_stamina
 			quest_ui.update_display()
 			quest_ui.refresh_episodes()
+		
+		show_quest_message(reward_text)
+
+func calculate_quest_material_rewards() -> Dictionary:
+	var rewards = {}
+	
+	# Reward materials based on highest level reached
+	# This ensures players can get materials appropriate to their progression
+	
+	if highest_level_reached >= 21:
+		rewards[Character.MaterialType.BASIC] = randi_range(1, 3)
+	
+	if highest_level_reached >= 41:
+		rewards[Character.MaterialType.ADVANCED] = randi_range(1, 2)
+	
+	if highest_level_reached >= 61:
+		rewards[Character.MaterialType.EXPERT] = randi_range(1, 2)
+	
+	if highest_level_reached >= 81:
+		rewards[Character.MaterialType.MASTER] = randi_range(1, 1)
+	
+	return rewards
 
 func _on_stamina_refill_requested():
 	# Cost to refill stamina
@@ -1638,7 +1701,6 @@ func show_character_popup(character: Character):
 	var type_indicator = Label.new()
 	if character.character_type == Character.Type.CHARACTER:
 		type_indicator.text = character.get_element_icon()
-	#else:
 	type_indicator.add_theme_font_size_override("font_size", 24)
 	type_indicator.modulate = character.get_rarity_color()
 	header_container.add_child(type_indicator)
@@ -1684,13 +1746,36 @@ func show_character_popup(character: Character):
 	if character.duplicate_count > 0:
 		info_label.text += "Duplicates: " + str(character.duplicate_count) + " (+Damage Bonus)\n"
 	
-	info_label.text += "\nUpgrade Cost: " + str(character.get_upgrade_cost()) + " Gold"
+	var upgrade_cost = character.get_upgrade_cost()
+	var mat_req = character.get_material_requirement()
+	
+	info_label.text += "\n=== Upgrade Cost ===" + "\n"
+	info_label.text += "Gold: " + str(upgrade_cost) + "\n"
+	
+	if not mat_req.is_empty():
+		var mat_name = Character.get_material_name(mat_req.type)
+		var mat_have = materials.get(mat_req.type, 0)
+		info_label.text += mat_name + ": " + str(mat_req.amount) + " (Have: " + str(mat_have) + ")\n"
+	
 	vbox.add_child(info_label)
 	
 	# Show upgrade button for both characters and weapons
+	var can_afford_gold = gold >= upgrade_cost
+	var can_afford_materials = true
+	
+	if not mat_req.is_empty():
+		can_afford_materials = materials.get(mat_req.type, 0) >= mat_req.amount
+	
 	var upgrade_button = Button.new()
-	upgrade_button.text = "Upgrade (" + str(character.get_upgrade_cost()) + " Gold)"
-	upgrade_button.disabled = gold < character.get_upgrade_cost()
+	var button_text = "Upgrade to Lv." + str(character.level + 1)
+	
+	if not can_afford_gold:
+		button_text += " (Need Gold)"
+	elif not can_afford_materials:
+		button_text += " (Need Materials)"
+	
+	upgrade_button.text = button_text
+	upgrade_button.disabled = not (can_afford_gold and can_afford_materials)
 	upgrade_button.pressed.connect(_on_upgrade_character.bind(character, popup))
 	vbox.add_child(upgrade_button)
 	
@@ -1707,6 +1792,7 @@ func show_character_popup(character: Character):
 		# Current weapon display
 		var current_weapon_label = Label.new()
 		if character.equipped_weapon != null:
+			current_weapon_label.text = character.equipped_weapon.name + " (Lv." + str(character.equipped_weapon.level) + ")"
 			current_weapon_label.modulate = character.equipped_weapon.get_rarity_color()
 		else:
 			current_weapon_label.text = "None"
@@ -1762,15 +1848,43 @@ func show_character_popup(character: Character):
 
 func _on_upgrade_character(character: Character, popup: AcceptDialog):
 	var cost = character.get_upgrade_cost()
-	if gold >= cost:
-		gold -= cost
-		character.upgrade_character(cost)
-		update_ui()
-		save_game()
-		popup.queue_free()
-		# Reopen the popup with updated info
-		show_character_popup(character)
-		print("Upgraded ", character.name, " to level ", character.level)
+	var mat_req = character.get_material_requirement()
+	
+	# Check gold
+	if gold < cost:
+		show_upgrade_error("Not enough gold!")
+		return
+	
+	# Check materials if required
+	if not mat_req.is_empty():
+		var mat_type = mat_req.type
+		var mat_amount = mat_req.amount
+		
+		if materials.get(mat_type, 0) < mat_amount:
+			var mat_name = Character.get_material_name(mat_type)
+			show_upgrade_error("Not enough " + mat_name + "!\nNeed: " + str(mat_amount) + "\nHave: " + str(materials.get(mat_type, 0)))
+			return
+		
+		# Consume materials
+		materials[mat_type] -= mat_amount
+	
+	# Consume gold and upgrade
+	gold -= cost
+	character.upgrade_character(cost)
+	update_ui()
+	save_game()
+	popup.queue_free()
+	# Reopen the popup with updated info
+	show_character_popup(character)
+	print("Upgraded ", character.name, " to level ", character.level)
+
+func show_upgrade_error(text: String):
+	var dialog = AcceptDialog.new()
+	dialog.dialog_text = text
+	dialog.title = "Upgrade Failed"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
 
 func _on_equip_weapon(character: Character, weapon: Character, popup: AcceptDialog):
 	equip_weapon(character, weapon)
@@ -1883,6 +1997,122 @@ func show_settings_ui():
 		settings_ui.reset_progress_requested.connect(reset_progress)
 	
 	settings_ui.visible = true
+
+# ========== MATERIALS UI FUNCTIONS ==========
+
+func create_materials_button():
+	# Find the bottom bar content container
+	var bottom_bar_content = $UI/BottomBar/BottomBarContent
+	
+	materials_button = Button.new()
+	materials_button.text = "Materials"
+	materials_button.custom_minimum_size = Vector2(150, 60)
+	materials_button.add_theme_font_size_override("font_size", 18)
+	materials_button.pressed.connect(_on_materials_button_pressed)
+	
+	# Add it after the Collection button
+	bottom_bar_content.add_child(materials_button)
+	bottom_bar_content.move_child(materials_button, collection_button.get_index() + 1)
+
+func _on_materials_button_pressed():
+	show_materials_popup()
+
+func show_materials_popup():
+	var popup = AcceptDialog.new()
+	popup.title = "Materials"
+	popup.size = Vector2(500, 400)
+	
+	var vbox = VBoxContainer.new()
+	popup.add_child(vbox)
+	
+	var title = Label.new()
+	title.text = "Crafting Materials"
+	title.add_theme_font_size_override("font_size", 24)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+	
+	var desc = Label.new()
+	desc.text = "Materials are used to upgrade characters and weapons past level 20.\nEarn materials by completing Quest episodes."
+	desc.add_theme_font_size_override("font_size", 12)
+	desc.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(desc)
+	
+	var separator1 = HSeparator.new()
+	vbox.add_child(separator1)
+	
+	# Show each material type
+	var material_types = [
+		Character.MaterialType.BASIC,
+		Character.MaterialType.ADVANCED,
+		Character.MaterialType.EXPERT,
+		Character.MaterialType.MASTER
+	]
+	
+	for mat_type in material_types:
+		var mat_container = create_material_display(mat_type)
+		vbox.add_child(mat_container)
+		
+		var separator = HSeparator.new()
+		vbox.add_child(separator)
+	
+	add_child(popup)
+	popup.popup_centered()
+	popup.confirmed.connect(popup.queue_free)
+
+func create_material_display(mat_type: Character.MaterialType) -> Control:
+	var hbox = HBoxContainer.new()
+	
+	# Icon
+	var icon = TextureRect.new()
+	var texture = SpriteManager.get_material_icon_texture(mat_type)
+	if texture != null:
+		icon.texture = texture
+	icon.custom_minimum_size = Vector2(48, 48)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hbox.add_child(icon)
+	
+	var spacer1 = Control.new()
+	spacer1.custom_minimum_size = Vector2(20, 0)
+	hbox.add_child(spacer1)
+	
+	# Info vbox
+	var info_vbox = VBoxContainer.new()
+	info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	
+	var name_label = Label.new()
+	name_label.text = Character.get_material_name(mat_type)
+	name_label.add_theme_font_size_override("font_size", 18)
+	info_vbox.add_child(name_label)
+	
+	var usage_label = Label.new()
+	match mat_type:
+		Character.MaterialType.BASIC:
+			usage_label.text = "Required for upgrades: Level 21-40"
+		Character.MaterialType.ADVANCED:
+			usage_label.text = "Required for upgrades: Level 41-60"
+		Character.MaterialType.EXPERT:
+			usage_label.text = "Required for upgrades: Level 61-80"
+		Character.MaterialType.MASTER:
+			usage_label.text = "Required for upgrades: Level 81-100"
+	
+	usage_label.add_theme_font_size_override("font_size", 12)
+	usage_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	info_vbox.add_child(usage_label)
+	
+	hbox.add_child(info_vbox)
+	
+	# Amount label
+	var amount_label = Label.new()
+	var amount = materials.get(mat_type, 0)
+	amount_label.text = "x" + str(amount)
+	amount_label.add_theme_font_size_override("font_size", 24)
+	amount_label.add_theme_color_override("font_color", Color.GOLD)
+	hbox.add_child(amount_label)
+	
+	return hbox
 
 # ========== INPUT HANDLING ==========
 
