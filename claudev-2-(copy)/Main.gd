@@ -1160,7 +1160,7 @@ func show_quest_ui():
 		quest_ui = quest_scene.instantiate()
 		add_child(quest_ui)
 		
-		# Connect signals
+		# Connect signals - note the updated signal signature
 		quest_ui.back_pressed.connect(_on_quest_back_pressed)
 		quest_ui.stamina_refill_requested.connect(_on_stamina_refill_requested)
 		quest_ui.open_shop_requested.connect(_on_quest_open_shop)
@@ -1185,13 +1185,13 @@ func _on_quest_open_shop():
 	hide_all_uis()
 	show_shop_ui()
 
-func _on_quest_episode_play(stamina_cost: int):
+func _on_quest_episode_play(stamina_cost: int, chapter_idx: int, episode_idx: int):
 	# Play button clicked - consume stamina and reward materials
 	if current_stamina >= stamina_cost:
 		current_stamina -= stamina_cost
 		
-		# Reward materials based on highest level reached
-		var mat_rewards = calculate_quest_material_rewards()
+		# Get episode-specific material rewards
+		var mat_rewards = get_episode_material_rewards(chapter_idx, episode_idx)
 		
 		var reward_text = "Episode completed!\n\nConsumed " + str(stamina_cost) + " stamina.\n\n"
 		reward_text += "Rewards:\n"
@@ -1215,23 +1215,45 @@ func _on_quest_episode_play(stamina_cost: int):
 		
 		show_quest_message(reward_text)
 
-func calculate_quest_material_rewards() -> Dictionary:
+func get_episode_material_rewards(chapter_idx: int, episode_idx: int) -> Dictionary:
 	var rewards = {}
 	
-	# Reward materials based on highest level reached
-	# This ensures players can get materials appropriate to their progression
+	# Safety check
+	if quest_ui == null or chapter_idx < 0 or chapter_idx >= quest_ui.chapters.size():
+		return rewards
 	
-	if highest_level_reached >= 21:
-		rewards[Character.MaterialType.BASIC] = randi_range(1, 3)
+	var chapter = quest_ui.chapters[chapter_idx]
+	if episode_idx < 0 or episode_idx >= chapter.episodes.size():
+		return rewards
 	
-	if highest_level_reached >= 41:
-		rewards[Character.MaterialType.ADVANCED] = randi_range(1, 2)
+	var episode = chapter.episodes[episode_idx]
 	
-	if highest_level_reached >= 61:
-		rewards[Character.MaterialType.EXPERT] = randi_range(1, 2)
+	# Check if episode has material rewards defined
+	if not episode.has("material_type"):
+		return rewards
 	
-	if highest_level_reached >= 81:
-		rewards[Character.MaterialType.MASTER] = randi_range(1, 1)
+	# Determine material type
+	var mat_type_str = episode.material_type
+	var mat_type: Character.MaterialType
+	
+	match mat_type_str:
+		"basic":
+			mat_type = Character.MaterialType.BASIC
+		"advanced":
+			mat_type = Character.MaterialType.ADVANCED
+		"expert":
+			mat_type = Character.MaterialType.EXPERT
+		"master":
+			mat_type = Character.MaterialType.MASTER
+		_:
+			return rewards  # Unknown material type
+	
+	# Get random amount within the episode's range
+	var min_amt = episode.get("material_amount_min", 1)
+	var max_amt = episode.get("material_amount_max", 1)
+	var amount = randi_range(min_amt, max_amt)
+	
+	rewards[mat_type] = amount
 	
 	return rewards
 
@@ -2017,6 +2039,70 @@ func create_materials_button():
 func _on_materials_button_pressed():
 	show_materials_popup()
 
+func get_next_material_tier(current_tier: Character.MaterialType) -> int:
+	# Returns the next tier up, or -1 if already at max
+	match current_tier:
+		Character.MaterialType.BASIC:
+			return Character.MaterialType.ADVANCED
+		Character.MaterialType.ADVANCED:
+			return Character.MaterialType.EXPERT
+		Character.MaterialType.EXPERT:
+			return Character.MaterialType.MASTER
+		Character.MaterialType.MASTER:
+			return -1  # Already highest tier
+		_:
+			return -1
+
+func _on_merge_materials(from_tier: Character.MaterialType, to_tier: Character.MaterialType):
+	var from_name = Character.get_material_name(from_tier)
+	var to_name = Character.get_material_name(to_tier)
+	var current_amount = materials.get(from_tier, 0)
+	
+	# Validate we have enough
+	if current_amount < 3:
+		show_material_message("Not enough " + from_name + " to merge!\nNeed: 3\nHave: " + str(current_amount))
+		return
+	
+	# Show confirmation dialog
+	var confirm = ConfirmationDialog.new()
+	confirm.dialog_text = "Merge Materials?\n\n3x " + from_name + " → 1x " + to_name + "\n\nThis action cannot be undone."
+	confirm.title = "Confirm Merge"
+	add_child(confirm)
+	
+	confirm.confirmed.connect(_perform_material_merge.bind(confirm, from_tier, to_tier))
+	confirm.canceled.connect(confirm.queue_free)
+	confirm.popup_centered()
+
+func _perform_material_merge(dialog: ConfirmationDialog, from_tier: Character.MaterialType, to_tier: Character.MaterialType):
+	# Consume 3 lower tier materials
+	materials[from_tier] -= 3
+	
+	# Gain 1 higher tier material
+	materials[to_tier] = materials.get(to_tier, 0) + 1
+	
+	var from_name = Character.get_material_name(from_tier)
+	var to_name = Character.get_material_name(to_tier)
+	
+	print("Merged 3x ", from_name, " into 1x ", to_name)
+	
+	# Save and update
+	save_game()
+	dialog.queue_free()
+	
+	# Show success message and refresh the materials popup
+	show_material_message("Successfully merged!\n\n-3x " + from_name + "\n+1x " + to_name)
+	
+	# Refresh the materials popup if it's open
+	_on_materials_button_pressed()
+
+func show_material_message(text: String):
+	var dialog = AcceptDialog.new()
+	dialog.dialog_text = text
+	dialog.title = "Materials"
+	add_child(dialog)
+	dialog.popup_centered()
+	dialog.confirmed.connect(dialog.queue_free)
+
 func show_materials_popup():
 	var popup = AcceptDialog.new()
 	popup.title = "Materials"
@@ -2032,7 +2118,7 @@ func show_materials_popup():
 	vbox.add_child(title)
 	
 	var desc = Label.new()
-	desc.text = "Materials are used to upgrade characters and weapons past level 20.\nEarn materials by completing Quest episodes."
+	desc.text = "Materials are used to upgrade characters and weapons past level 20.\nEarn materials by completing Quest episodes.\n\nYou can merge 3 lower-tier materials into 1 higher-tier material."
 	desc.add_theme_font_size_override("font_size", 12)
 	desc.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -2062,7 +2148,10 @@ func show_materials_popup():
 	popup.confirmed.connect(popup.queue_free)
 
 func create_material_display(mat_type: Character.MaterialType) -> Control:
+	var container = VBoxContainer.new()
+	
 	var hbox = HBoxContainer.new()
+	container.add_child(hbox)
 	
 	# Icon
 	var icon = TextureRect.new()
@@ -2112,7 +2201,30 @@ func create_material_display(mat_type: Character.MaterialType) -> Control:
 	amount_label.add_theme_color_override("font_color", Color.GOLD)
 	hbox.add_child(amount_label)
 	
-	return hbox
+	# Merge button (only if not Master tier and have enough materials)
+	var next_tier = get_next_material_tier(mat_type)
+	if next_tier != -1:
+		var merge_hbox = HBoxContainer.new()
+		merge_hbox.alignment = BoxContainer.ALIGNMENT_END
+		container.add_child(merge_hbox)
+		
+		var merge_button = Button.new()
+		var can_merge = amount >= 3
+		
+		if can_merge:
+			merge_button.text = "Merge 3 > 1 " + Character.get_material_name(next_tier)
+			merge_button.modulate = Color(0.7, 1.0, 0.7)  # Green tint
+		else:
+			merge_button.text = "Merge 3 > 1 " + Character.get_material_name(next_tier) + " (Need 3)"
+			merge_button.disabled = true
+			merge_button.modulate = Color(0.5, 0.5, 0.5)
+		
+		merge_button.custom_minimum_size = Vector2(250, 30)
+		merge_button.add_theme_font_size_override("font_size", 12)
+		merge_button.pressed.connect(_on_merge_materials.bind(mat_type, next_tier))
+		merge_hbox.add_child(merge_button)
+	
+	return container
 
 # ========== INPUT HANDLING ==========
 

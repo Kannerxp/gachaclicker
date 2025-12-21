@@ -3,7 +3,7 @@ extends Control
 signal back_pressed
 signal stamina_refill_requested
 signal open_shop_requested
-signal episode_play_requested(stamina_cost: int)
+signal episode_play_requested(stamina_cost: int, chapter_idx: int, episode_idx: int)
 
 # Quest data structure
 var chapters: Array[Dictionary] = []
@@ -18,6 +18,7 @@ var current_gems: int = 0
 var highest_level_reached: int = 1
 
 var is_initialized: bool = false
+var is_first_setup: bool = true  # Track if this is the first setup call
 
 @onready var gems_icon = $TopBar/GemsContainer/GemsIcon
 @onready var gems_button = $TopBar/GemsContainer/GemsButton
@@ -68,17 +69,117 @@ func initialize_chapters():
 		{
 			"name": "Chapter 1",
 			"episodes": [
+				# Basic Essence Episodes (1-3)
 				{
-					"name": "ep. 1",
+					"name": "Episode 1",
 					"level_req": 1,
-					"stamina_cost": 9,
-					"stars": 0
+					"stamina_cost": 8,
+					"stars": 0,
+					"material_type": "basic",
+					"material_amount_min": 1,
+					"material_amount_max": 2
 				},
 				{
-					"name": "ep. 2",
+					"name": "Episode 2",
+					"level_req": 10,
+					"stamina_cost": 9,
+					"stars": 0,
+					"material_type": "basic",
+					"material_amount_min": 2,
+					"material_amount_max": 3
+				},
+				{
+					"name": "Episode 3",
 					"level_req": 20,
+					"stamina_cost": 10,
+					"stars": 0,
+					"material_type": "basic",
+					"material_amount_min": 3,
+					"material_amount_max": 4
+				},
+				# Advanced Essence Episodes (4-6)
+				{
+					"name": "Episode 4",
+					"level_req": 30,
 					"stamina_cost": 12,
-					"stars": 0
+					"stars": 0,
+					"material_type": "advanced",
+					"material_amount_min": 1,
+					"material_amount_max": 2
+				},
+				{
+					"name": "Episode 5",
+					"level_req": 40,
+					"stamina_cost": 14,
+					"stars": 0,
+					"material_type": "advanced",
+					"material_amount_min": 2,
+					"material_amount_max": 3
+				},
+				{
+					"name": "Episode 6",
+					"level_req": 50,
+					"stamina_cost": 16,
+					"stars": 0,
+					"material_type": "advanced",
+					"material_amount_min": 3,
+					"material_amount_max": 4
+				},
+				# Expert Essence Episodes (7-9)
+				{
+					"name": "Episode 7",
+					"level_req": 60,
+					"stamina_cost": 18,
+					"stars": 0,
+					"material_type": "expert",
+					"material_amount_min": 1,
+					"material_amount_max": 2
+				},
+				{
+					"name": "Episode 8",
+					"level_req": 70,
+					"stamina_cost": 20,
+					"stars": 0,
+					"material_type": "expert",
+					"material_amount_min": 2,
+					"material_amount_max": 3
+				},
+				{
+					"name": "Episode 9",
+					"level_req": 80,
+					"stamina_cost": 22,
+					"stars": 0,
+					"material_type": "expert",
+					"material_amount_min": 3,
+					"material_amount_max": 4
+				},
+				# Master Essence Episodes (10-12)
+				{
+					"name": "Episode 10",
+					"level_req": 90,
+					"stamina_cost": 24,
+					"stars": 0,
+					"material_type": "master",
+					"material_amount_min": 1,
+					"material_amount_max": 2
+				},
+				{
+					"name": "Episode 11",
+					"level_req": 100,
+					"stamina_cost": 26,
+					"stars": 0,
+					"material_type": "master",
+					"material_amount_min": 2,
+					"material_amount_max": 3
+				},
+				{
+					"name": "Episode 12",
+					"level_req": 110,
+					"stamina_cost": 28,
+					"stars": 0,
+					"material_type": "master",
+					"material_amount_min": 3,
+					"material_amount_max": 4
 				}
 			]
 		},
@@ -86,37 +187,9 @@ func initialize_chapters():
 			"name": "Chapter 2",
 			"episodes": [
 				{
-					"name": "ep. 1",
-					"level_req": 50,
-					"stamina_cost": 15,
-					"stars": 0
-				},
-				{
-					"name": "ep. 2",
-					"level_req": 75,
-					"stamina_cost": 18,
-					"stars": 0
-				}
-			]
-		},
-		{
-			"name": "Chapter 3",
-			"episodes": [
-				{
-					"name": "ep. 1",
-					"level_req": 100,
-					"stamina_cost": 20,
-					"stars": 0
-				}
-			]
-		},
-		{
-			"name": "Chapter 4",
-			"episodes": [
-				{
-					"name": "ep. 1",
-					"level_req": 150,
-					"stamina_cost": 25,
+					"name": "Episode 1",
+					"level_req": 120,
+					"stamina_cost": 30,
 					"stars": 0
 				}
 			]
@@ -180,22 +253,22 @@ func refresh_episodes():
 
 func create_episode_panel(episode: Dictionary, chapter_idx: int, episode_idx: int) -> Control:
 	var panel = Panel.new()
-	panel.custom_minimum_size = Vector2(0, 100)
+	panel.custom_minimum_size = Vector2(0, 120)
 	
-	var hbox = HBoxContainer.new()
-	hbox.anchor_left = 0.0
-	hbox.anchor_right = 1.0
-	hbox.anchor_top = 0.0
-	hbox.anchor_bottom = 1.0
-	hbox.offset_left = 10
-	hbox.offset_top = 10
-	hbox.offset_right = -10
-	hbox.offset_bottom = -10
-	panel.add_child(hbox)
+	var vbox = VBoxContainer.new()
+	vbox.anchor_left = 0.0
+	vbox.anchor_right = 1.0
+	vbox.anchor_top = 0.0
+	vbox.anchor_bottom = 1.0
+	vbox.offset_left = 10
+	vbox.offset_top = 10
+	vbox.offset_right = -10
+	vbox.offset_bottom = -10
+	panel.add_child(vbox)
 	
-	# Left side - Status and info
-	var left_vbox = VBoxContainer.new()
-	hbox.add_child(left_vbox)
+	# Top row with status and episode name
+	var top_hbox = HBoxContainer.new()
+	vbox.add_child(top_hbox)
 	
 	# Check if unlocked
 	var is_unlocked = highest_level_reached >= episode.level_req
@@ -208,38 +281,66 @@ func create_episode_panel(episode: Dictionary, chapter_idx: int, episode_idx: in
 	else:
 		status_label.text = "Locked"
 		status_label.add_theme_color_override("font_color", Color.RED)
-	status_label.add_theme_font_size_override("font_size", 14)
-	left_vbox.add_child(status_label)
+	status_label.add_theme_font_size_override("font_size", 12)
+	top_hbox.add_child(status_label)
+	
+	var spacer1 = Control.new()
+	spacer1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_hbox.add_child(spacer1)
 	
 	# Episode name
 	var name_label = Label.new()
 	name_label.text = episode.name
 	name_label.add_theme_font_size_override("font_size", 18)
-	left_vbox.add_child(name_label)
+	top_hbox.add_child(name_label)
 	
-	# Requirements
+	# Requirements and costs
+	var req_hbox = HBoxContainer.new()
+	vbox.add_child(req_hbox)
+	
 	var req_label = Label.new()
-	req_label.text = "Level " + str(episode.level_req) + " req."
+	req_label.text = "Level " + str(episode.level_req) + " Required"
 	req_label.add_theme_font_size_override("font_size", 12)
 	req_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	left_vbox.add_child(req_label)
+	req_hbox.add_child(req_label)
 	
-	# Stamina cost
+	var spacer2 = Control.new()
+	spacer2.custom_minimum_size = Vector2(20, 0)
+	req_hbox.add_child(spacer2)
+	
 	var stamina_label = Label.new()
-	stamina_label.text = str(episode.stamina_cost) + " Stamina"
+	stamina_label.text = "Cost: " + str(episode.stamina_cost) + " Stamina"
 	stamina_label.add_theme_font_size_override("font_size", 12)
 	stamina_label.add_theme_color_override("font_color", Color(1.0, 0.84, 0.0))
-	left_vbox.add_child(stamina_label)
+	req_hbox.add_child(stamina_label)
 	
-	# Spacer
-	var spacer = Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hbox.add_child(spacer)
+	# Rewards info
+	if episode.has("material_type"):
+		var reward_hbox = HBoxContainer.new()
+		vbox.add_child(reward_hbox)
+		
+		var reward_label = Label.new()
+		var mat_name = get_material_display_name(episode.material_type)
+		var min_amt = episode.material_amount_min
+		var max_amt = episode.material_amount_max
+		
+		reward_label.text = "Rewards: " + str(min_amt) + "-" + str(max_amt) + "x " + mat_name
+		reward_label.add_theme_font_size_override("font_size", 12)
+		reward_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.5))
+		reward_hbox.add_child(reward_label)
 	
-	# Right side - Play button
+	var spacer3 = Control.new()
+	spacer3.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer3)
+	
+	# Play button at bottom
+	var button_hbox = HBoxContainer.new()
+	button_hbox.alignment = BoxContainer.ALIGNMENT_END
+	vbox.add_child(button_hbox)
+	
 	var play_button = Button.new()
 	play_button.text = "Play"
-	play_button.custom_minimum_size = Vector2(100, 60)
+	play_button.custom_minimum_size = Vector2(100, 40)
 	play_button.add_theme_font_size_override("font_size", 16)
 	
 	# Disable if locked or not enough stamina
@@ -248,14 +349,27 @@ func create_episode_panel(episode: Dictionary, chapter_idx: int, episode_idx: in
 		play_button.text = "Locked"
 	elif current_stamina < episode.stamina_cost:
 		play_button.disabled = true
-		play_button.text = "Not Enough\nStamina"
+		play_button.text = "Need Stamina"
 		play_button.add_theme_font_size_override("font_size", 12)
 	else:
 		play_button.pressed.connect(_on_episode_play_pressed.bind(chapter_idx, episode_idx))
 	
-	hbox.add_child(play_button)
+	button_hbox.add_child(play_button)
 	
 	return panel
+
+func get_material_display_name(mat_type: String) -> String:
+	match mat_type:
+		"basic":
+			return "Basic Essence"
+		"advanced":
+			return "Advanced Essence"
+		"expert":
+			return "Expert Essence"
+		"master":
+			return "Master Essence"
+		_:
+			return "Materials"
 
 func _on_episode_play_pressed(chapter_idx: int, episode_idx: int):
 	var episode = chapters[chapter_idx].episodes[episode_idx]
@@ -265,11 +379,8 @@ func _on_episode_play_pressed(chapter_idx: int, episode_idx: int):
 		show_message("Not enough stamina!")
 		return
 	
-	# Emit signal to Main to consume stamina
-	episode_play_requested.emit(episode.stamina_cost)
-	
-	# Show message
-	show_message("Episode started!\n\nConsumed " + str(episode.stamina_cost) + " stamina.\n\n(Story gameplay will be implemented in future updates)")
+	# Emit signal to Main with chapter and episode indices
+	episode_play_requested.emit(episode.stamina_cost, chapter_idx, episode_idx)
 
 func update_display():
 	# Update gems
@@ -298,7 +409,13 @@ func setup(stamina: int, max_stam: int, stam_timer: float, stam_interval: float,
 	highest_level_reached = highest_level
 	
 	update_display()
-	refresh_episodes()
+	
+	# Only refresh episodes if this isn't the first setup call
+	# (First setup already refreshes via _ready() -> setup_chapter_buttons() -> switch_chapter())
+	if not is_first_setup:
+		refresh_episodes()
+	else:
+		is_first_setup = false
 
 func _on_tab_pressed(tab_name: String):
 	# Hide all tabs

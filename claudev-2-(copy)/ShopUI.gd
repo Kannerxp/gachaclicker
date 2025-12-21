@@ -76,7 +76,7 @@ func initialize_gems_items():
 			"id": "gems_5",
 			"name": "5 Gems",
 			"gems": 5,
-			"price": 4.99,
+			"price": 3.99,
 			"daily_limit": 3,
 			"discount": 20
 		},
@@ -84,7 +84,7 @@ func initialize_gems_items():
 			"id": "gems_10",
 			"name": "10 Gems",
 			"gems": 10,
-			"price": 9.99,
+			"price": 7.99,
 			"daily_limit": 1,
 			"discount": 20
 		},
@@ -146,15 +146,15 @@ func initialize_pulls_items():
 			"pulls": 5,
 			"price": 25,
 			"daily_limit": 3,
-			"discount": 20
+			"discount": 0
 		},
 		{
 			"id": "pulls_10",
 			"name": "10 Pulls",
-			"pulls": 50,
-			"price": 999,
+			"pulls": 10,
+			"price": 50,
 			"daily_limit": 1,
-			"discount": 20
+			"discount": 0
 		},
 		{
 			"id": "pulls_small",
@@ -330,7 +330,15 @@ func create_item_card(item: Dictionary) -> Control:
 		button_container.add_child(sold_out_label)
 	else:
 		var buy_button = Button.new()
-		buy_button.text = format_price(item.price)
+		
+		# Format price based on current category
+		if current_category == Category.PULLS:
+			# Pulls cost gems, show as "X Gems"
+			buy_button.text = str(int(item.price)) + " Gems"
+		else:
+			# Other items cost money, show as "$X.XX"
+			buy_button.text = format_price(item.price)
+		
 		buy_button.custom_minimum_size = Vector2(0, 40)
 		buy_button.add_theme_font_size_override("font_size", 16)
 		buy_button.pressed.connect(_on_purchase_button_pressed.bind(item))
